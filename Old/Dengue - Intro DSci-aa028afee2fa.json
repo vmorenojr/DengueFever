@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "dengue-intro-dsci",
+  "private_key_id": "aa028afee2fadea81cfd8f56325a00dec0826096",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCUm3PzkR76QEn2\nSq1oTrYdSAIjkcYA057/tdhSqy8Ywgen1ILgJ98cUiifJNJqqiz2GKUEJ7Hdg6CA\ngEFmTarsGzS51YoKVbXqM0SPoLL8TP8JGGHXqA4Wc77MwNeZwvqyIxS32kLUINvv\nswp4YbGSCQbV5s6CfCkqlDelOOalMnYRmg2Cl0zy3JgE2TZ3MM7Soqdeji5HEkDq\nmFpElJk5dJ1gGt9oz0ONa+7N4WSH333JfG0TsVVqF9OFGaZhIw7yQblYPkY/7Dua\nourkmaEvVYuLB3cyZZYGF0qNevT2z5lWwjM8Wuwug8eHCoAqLOGLxleCx1CF+9tv\nWPNO8IYlAgMBAAECggEAIvrBbRZeeozZ7AORdEE8zEEoIbu9JfIqFao12GWrcRIw\n76ANy1oPQhETtzwZXFqguS+9XfBDBW9nfv/RhRVok2lm/IwnUT3yE0XMkFtE7i7o\nhDlNRJAt+rp1cag9x5d136ryxED3pIt0gaQ85W+ndsaxqXVJ7DxyCy/2tikh30XY\n4n1HuEoGcoJSpTQ8HT6+O/sW0Dd+MM1hrH5YjTduTnJqJWbIUj9FlhmGoALhecOf\nfYKh+IJg/3T3z3QdyptVrZiPz2muMlR2d3naJtyUzOGdjc2Hkf74qi3rQ36EMjw+\nSvF/pMWyJfIQrqtMKRMDUGafvHw4ok4xIjUm9EYcwQKBgQDD4dE5Mu6suY88r9Hr\nJG1BWmaTjrb1xUfg1iBsyhXuE2olxaNIM46M0b6GADNPsEgkDm/W2iO6u8lnBg97\n3+B+J3pS1FQjYpGdnbdstOIfx+CwGBrzbVH4QkQb2WYQr8txLhbSF4k/19kuKf1x\n2TvgULOQzf2O+KCCWaWQ7lMUwQKBgQDCN1DgZkgzSOjWdo6Ep8/apDPABKhlI4RL\nbe+5AxfqX681kgeckVdvbAgSq492tIQPA2GHctzVTTaTjdkPre2BwyMU4mx9IivR\ndnpP8dzw+kl9vfDLUbLVzuaYcdRRKoLSlDvmh9lHesLmhLneGN0eEO9vRv3WeEeh\nQAvw+NDWZQKBgQC/2mQu7sjAGfrGCLrE4We1E9LWAXkHnRM6jt8xTnlONmvH1RyI\n8h5TpHdEDdwz18fAsPcva3aFRboMku4FeRAK36W6jMZf5gITa08lRMEZOY7DSsjS\n1absThMhZ7vE6jmLgAXP/kdqZYIM6gmXQZqYqNJHKMqJBtFG+oDkQ9jRwQKBgHE+\nGb1ORkkI+SKbrEvzIUImPjp3PM0EIY5twrqI8DfrpNjClgeXw3incCmauSMI7Hto\niESXF+aTiAAPVIJM8tCXvGvf/kwUUaJnx7e3mhE0jwdvaejTcUgzxMcckCTnebJZ\nVnf7vBhunxgUSeATdVKjo0iqBzY3meSO2KegHPz1AoGBAK7AA6wzmBxxgxuv9rUT\nKn6JKrrANKC2HAxtSUhOKCOArXw8WS82hTItUFhTVkZhh4w4A5DLIij6TZ4X17xy\n3MZFwOLGZuNFUD2pa7miTrxKElS/s8L+CpnUSZC64folHNJnZTpBkJao3QO3YPbi\ndMmpMV6+Yeh6TR4ZBFhvwPvc\n-----END PRIVATE KEY-----\n",
+  "client_email": "intro-dsci@dengue-intro-dsci.iam.gserviceaccount.com",
+  "client_id": "114419719874040841798",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/intro-dsci%40dengue-intro-dsci.iam.gserviceaccount.com"
+}
