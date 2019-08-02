@@ -1,33 +1,74 @@
 # Prepare the environment:
-import time
 import pandas as pd
 from bs4 import BeautifulSoup
-from selenium import webdriver
+from urllib.request import urlopen
 
-# Open browser and go to website
-driver = webdriver.Chrome()
-driver.get('https://www.estadosecapitaisdobrasil.com/')
+
+## Scrape capitals, regions, UF
 
 # Get the HTML code from the website and close browser
-res = driver.execute_script("return document.documentElement.outerHTML")
-driver.quit()
+url = 'https://www.estadosecapitaisdobrasil.com/'
+html = urlopen(url).read()
 
-# Get all the references with BeautifulSoup
-soup = BeautifulSoup(res, 'lxml')
+# Get table header with BeautifulSoup
+soup = BeautifulSoup(html, 'lxml')
+header = soup.find_all('th')
+
+col_names = []
+
+for col in header:
+    col_names.append(col.get_text())
+
 states = soup.find_all('tr')
-
-# Extract the title, authors and journal information
 cities = []
 
-for ref in states:
-    ref_title = ref.find('a').text
-    ref_grays = ref.find_all('div', class_='gs_gray')
-    ref_authors = ref_grays[0].text.split(',')
-    ref_authors = [author.strip() for author in ref_authors]
-    ref_journal = ref_grays[1].text
+for row in states[1:len(states)]:
+    city = []
+    for col in row.find_all('td'):
+        city.append(col.get_text().strip())
+    cities.append(city)
 
-    while '...' in ref_authors:
-        ref_authors.remove('...')
+df_cities = pd.DataFrame(cities, columns=col_names) \
+    .drop(columns=['Bandeira','Curtir'])
 
-    papers.append(
-        {'title': ref_title, 'authors': ref_authors, 'journal': ref_journal})
+
+## Scrape population from Wikipedia
+
+# Get the HTML code from the website and close browser
+url = 'https://pt.wikipedia.org/wiki/Lista_de_capitais_do_Brasil_por_popula%C3%A7%C3%A3o'
+html = urlopen(url).read()
+
+# Get all the table header with BeautifulSoup
+soup = BeautifulSoup(html, 'lxml')
+header = soup.find('table').find_all('th')
+
+col_names = []
+
+for col in header:
+    col_names.append(col.get_text().strip())
+
+states = soup.find('table').find_all('tr')
+    
+cities = []
+
+for row in states[1:len(states)]:
+    city = []
+    for col in row.find_all('td'):
+        city.append(col.get_text().strip().replace('.',''))
+    cities.append(city)
+
+df_cities_pop = pd.DataFrame(cities, columns=col_names) \
+    .drop(columns=['Pos. 2018', 'Dif. 2000', 'Unidade federativa', 'Pos. 2000']) \
+    .rename(columns={'Localidade':'municipio',
+                     'População em 2018[1]':'pop_2018', 
+                     'População em 2010':'pop_2010', 
+                     'População em 2000':'pop_2000'})
+
+df_cities_pop[['pop_2018', 'pop_2010', 'pop_2000']] = df_cities_pop[['pop_2018', 'pop_2010', 'pop_2000']] \
+    .apply(pd.to_numeric)
+    
+df_cities = df_cities.merge(df_cities_pop, left_on='Capital', right_on='municipio') \
+    .drop(columns='municipio') \
+    .rename(columns={'Estado':'estado', 'Sigla':'UF', 'Capital':'municipio', 'Região':'regiao'})
+
+df_cities.to_csv('Dados/capitais.csv', index=False)

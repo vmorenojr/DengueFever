@@ -73,16 +73,20 @@ app.layout = html.Div([
                     y = dados[dados['co_municipio'] == i]['ocorrencias'],
                     text = dados[dados['co_municipio'] == i]['municipio'],
                     mode = 'lines',
-                    name = dados[dados['co_municipio'] == i]['municipio'].iloc[0]
+                    name = dados[dados['co_municipio'] == i]['municipio'].iloc[0],
+                    legendgroup = dados[dados['co_municipio'] == i]['regiao'].iloc[0] 
                 ) for i in dados['co_municipio'].unique()
             ],
             'layout': go.Layout(
+                template='plotly_white',
                 title='Weekly Reports of Dengue Fever in Brazilian State Capitals',            
                 xaxis={'title': 'Year-Month'},
                 yaxis={'title': 'Total Weekly Reports'},
-                margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
+                width=1200, height=900,
+                #margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
                 #legend={'x': 0, 'y': 1},
-                hovermode='closest'
+                hovermode='closest',
+                xaxis_rangeslider_visible=True
             )
         }
     )
