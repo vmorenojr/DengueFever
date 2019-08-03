@@ -26,10 +26,9 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 # Read the data file into a dataframe
 
-dados = pd.read_csv('Dados/dengue.csv.gz')
+dados = pd.read_csv('Dados/dengue_por_habitante.csv.gz')
 
 dados = dados[dados['dt_sintoma'] >= '2006-01-01']
-#municipios_sel = [1302603, 2211001, 3106200, 4106902, 5002704]
 
 app.layout = html.Div([
     
@@ -80,8 +79,35 @@ app.layout = html.Div([
             'layout': go.Layout(
                 template='plotly_white',
                 title='Weekly Reports of Dengue Fever in Brazilian State Capitals',            
-                xaxis={'title': 'Year-Month'},
-                yaxis={'title': 'Total Weekly Reports'},
+                xaxis={'title': 'Date'},
+                yaxis={'title': 'Weekly Reports'},
+                width=1200, height=900,
+                #margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
+                #legend={'x': 0, 'y': 1},
+                hovermode='closest',
+                xaxis_rangeslider_visible=True
+            )
+        }
+    ),
+    
+    dcc.Graph(
+        id='time-series-per-capta',
+        figure={
+            'data': [
+                go.Scatter(
+                    x = dados[dados['co_municipio'] == i]['dt_sintoma'],
+                    y = dados[dados['co_municipio'] == i]['por_habitante'],
+                    text = dados[dados['co_municipio'] == i]['municipio'],
+                    mode = 'lines',
+                    name = dados[dados['co_municipio'] == i]['municipio'].iloc[0],
+                    legendgroup = dados[dados['co_municipio'] == i]['regiao'].iloc[0] 
+                ) for i in dados['co_municipio'].unique()
+            ],
+            'layout': go.Layout(
+                template='plotly_white',
+                title='Weekly Reports of Dengue Fever per Capta in Brazilian State Capitals',            
+                xaxis={'title': 'Date'},
+                yaxis={'title': 'Weekly Reports per Capta'},
                 width=1200, height=900,
                 #margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
                 #legend={'x': 0, 'y': 1},
@@ -90,6 +116,7 @@ app.layout = html.Div([
             )
         }
     )
+
 ])
 
 if __name__ == '__main__':
