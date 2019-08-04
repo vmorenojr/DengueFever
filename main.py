@@ -18,17 +18,24 @@ def generate_table(dataframe, max_rows=10):
         ]) for i in range(min(len(dataframe), max_rows))]
     )
 
+# Read the data file into a dataframe
+
+dados = pd.read_csv('Dados/dengue_por_habitante.csv.gz')
+dados = dados[dados['dt_sintoma'] >= '2006-01-01']
+
+# Read stationarity results
+
+st = pd.read_csv('Dados/stationarity.csv')
+st[['test_statistic','p-value']] = st[['test_statistic','p-value']].apply((lambda x: round(x,5)))
+st.columns = ['City', 'Test statistic', 'p-Value', 'Stationary']
+
 # Dash setup
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-# Read the data file into a dataframe
-
-dados = pd.read_csv('Dados/dengue_por_habitante.csv.gz')
-
-dados = dados[dados['dt_sintoma'] >= '2006-01-01']
+# Generate the web page
 
 app.layout = html.Div([
     
@@ -62,6 +69,27 @@ app.layout = html.Div([
     html.H5(children='Weekly reports of dengue fever in Brazilian state capitals'),
     
     generate_table(dados),
+    
+    dcc.Graph(
+        id='time-series-global',
+        figure={
+            'data': [
+                go.Scatter(
+                    x = dados.dt_sintoma.unique(),
+                    y = dados.groupby('dt_sintoma')['ocorrencias'].sum(),
+                    mode = 'lines',
+                    line=dict(color='firebrick'),
+                    showlegend = False
+            )],
+            'layout': go.Layout(
+                template='plotly_white',
+                title='Weekly Reports of Dengue Fever in Brazil',            
+                xaxis={'title': 'Year'},
+                yaxis={'title': 'Weekly Reports'},
+                hovermode='closest'
+            )
+        }
+    ),
     
     dcc.Graph(
         id='time-series',
@@ -115,7 +143,20 @@ app.layout = html.Div([
                 xaxis_rangeslider_visible=True
             )
         }
-    )
+    ),
+    
+    dcc.Markdown(children='''
+                #### Stationarity Test
+                We used the [Augmented Dickey–Fuller test]
+                (https://en.wikipedia.org/wiki/Augmented_Dickey%E2%80%93Fuller_test)
+                to assess the stationarity of each state capital's time series. Time series 
+                cross-correlations may be inflated by trend and seasonality. It is important,
+                therefore to check the stationarity of the series before calculating cross-correlations. 
+                Below, we present the test results for the time series of the Brazilian capitals.
+                '''
+    ),
+    
+    generate_table(st),
 
 ])
 
