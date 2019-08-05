@@ -2,6 +2,9 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
+import dash_table
+import IBGE as ib
+from dash.dependencies import Input, Output
 
 import datetime as dt
 import pandas as pd
@@ -22,6 +25,7 @@ def generate_table(dataframe, max_rows=10):
 
 dados = pd.read_csv('Dados/dengue_por_habitante.csv.gz')
 dados = dados[dados['dt_sintoma'] >= '2006-01-01']
+dados.por_habitante = round(100000*dados.por_habitante,2)
 
 # Read stationarity results
 
@@ -67,8 +71,16 @@ app.layout = html.Div([
                  '''),
     
     html.H5(children='Weekly reports of dengue fever in Brazilian state capitals'),
-    
-    generate_table(dados),
+
+    dash_table.DataTable(
+        id='datatable-begin',
+        columns=[{'name': i, 'id': i, 'deletable': True} for i in dados.columns],
+        data=dados.to_dict('records'),
+        fixed_rows={'headers': True, 'data': 0},
+        style_cell={'width': '150px'},
+        filter_action='native'
+    ),
+    html.Div(id='filter1'),
     
     dcc.Graph(
         id='time-series-global',
@@ -155,10 +167,75 @@ app.layout = html.Div([
                 Below, we present the test results for the time series of the Brazilian capitals.
                 '''
     ),
-    
-    generate_table(st),
+
+    dash_table.DataTable(
+        id='st',
+        columns=[{'name': i, 'id': i} for i in st.columns],
+        data=st.to_dict('records'),
+        fixed_rows={'headers': True, 'data': 0},
+        style_cell={'width': '40px', 'maxHeight': '5'},
+    ),
+
+    dcc.Markdown(children=
+             """#### Monthly/Trimester/Yearly table of reports by region
+             """),
+
+
+    html.Div(
+        id = 'container-col-select',
+        children = dcc.RadioItems(
+        id = 'regions-data',
+        options = [{'label':i, 'value':i} for i in ib.regioes.keys()],
+        labelStyle={'display':'inline-block'},
+        value = 'Norte'
+            ),
+    ),
+
+    html.Div(
+        id = 'container-period-select',
+        children = dcc.RadioItems(
+            id = 'period-filter',
+            options = [{'label':'Trimester','value':'3M'},{'label':'Yearly','value':'Y'},{'label':'Monthlty','value':'M'}],
+            value = 'M',
+            labelStyle={'display': 'inline-block'}
+        )
+
+    ),
+
+
+    dash_table.DataTable(
+        id='datatable-regions',
+        columns=[{'name': i, 'id': i} for i in ['dt_sintoma','ocorrencias','populacao','por_habitante']],
+        data=dados.to_dict('records'),
+        fixed_rows={ 'headers': True, 'data': 0 },
+        style_cell={'width': '150px'}
+    ),
+    html.Div(id='datatable-filter-container')
 
 ])
+
+
+
+@app.callback(Output('datatable-regions','data'), [Input('regions-data',"value"), Input('period-filter',"value")])
+def filter_table(value1,value2):
+    if value1 is None:
+        dff = dados
+    else:
+        dff = ib.group_by(dados[dados['regiao']==value1],value2,value1).reset_index()
+        dff['por_habitante'] = round(100000*dff['ocorrencias'] / dff['populacao'],2)
+        dff['dt_sintoma'] = [str(dff['dt_sintoma'][i]) for i in range(len(dff))]
+        return(dff.to_dict('records'))
+
+
+@app.callback(Output('filter1','children'), [Input('datatable-begin',"data")])
+def filter_table1(value):
+    if value is None:
+        dff = dados
+    else:
+        dff = pd.DataFrame(value).sort_values(by=['dt_sintoma','UF','municipio'])
+        return(html.Div())
+
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
