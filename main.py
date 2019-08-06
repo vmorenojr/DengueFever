@@ -33,6 +33,19 @@ st = pd.read_csv('Dados/stationarity.csv')
 st[['test_statistic','p-value']] = st[['test_statistic','p-value']].apply((lambda x: round(x,5)))
 st.columns = ['City', 'Test statistic', 'p-Value', 'Stationary']
 
+# Read cross-correlations and prepared dataframe
+
+corrs = pd.read_csv('Dados/all_corrs.csv')
+corrs[['lag_0', 'lag_1', 'lag_2', 'lag_3', 'lag_4', 'lag_5', 'lag_6', 'lag_7', 'lag_8']] = \
+    corrs[['lag_0', 'lag_1', 'lag_2', 'lag_3', 'lag_4', 'lag_5', 'lag_6', 'lag_7', 'lag_8']] \
+        .apply((lambda x: round(x,2)))
+corrs.columns = ['municipio1', 'municipio2', 0, 1, 2, 3, 4, 5, 6, 7, 8]
+corrs = pd.melt(corrs, id_vars = ['municipio1', 'municipio2'], var_name='lag', value_name='correlation')
+
+# Read the data about state capitals into a dataframe
+
+capitais = pd.read_csv('Dados/capitais.csv')
+
 # Dash setup
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -175,11 +188,45 @@ app.layout = html.Div([
         fixed_rows={'headers': True, 'data': 0},
         style_cell={'width': '40px', 'maxHeight': '5'},
     ),
+    
+    # Cross-correlation chart:
+    
+    dcc.Graph(
+        id='cross-corrs',
+        figure={
+            'data': [
+                go.Scatter3d(
+                    x = corrs[(corrs['municipio1'] == 'Recife') & 
+                              (corrs['municipio2'] == i)]['lag'],
+                    y = corrs[(corrs['municipio1'] == 'Recife') & 
+                              (corrs['municipio2'] == i)]['municipio2'],
+                    z = corrs[(corrs['municipio1'] == 'Recife') & 
+                              (corrs['municipio2'] == i)]['correlation'],
+                    mode = 'lines',
+                    surfaceaxis = -1
+                ) for i in corrs[(corrs['municipio2'].isin( 
+                                  capitais[capitais['regiao'] == 'Nordeste']['municipio'].to_list())) \
+                                  & (corrs['municipio2'] != 'Recife')] \
+                                ['municipio2'].unique()
+            ],
+            'layout': go.Layout(
+                template = 'plotly_white',
+                title = 'Cross-correlations for Dengue Fever Time Series',            
+                scene = dict(
+                    xaxis_title = 'Time lag (weeks)',
+                    yaxis_title = 'City',
+                    zaxis_title = 'Correlation'),
+                showlegend=False,
+                hovermode='closest',
+                width = 800, height = 800#,
+                #margin = dict(r = 20, b = 10, l = 10, t = 10)
+            )
+        }
+    ),    
 
     dcc.Markdown(children=
              """#### Monthly/Trimester/Yearly table of reports by region
              """),
-
 
     html.Div(
         id = 'container-col-select',
