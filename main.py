@@ -9,6 +9,8 @@ from dash.dependencies import Input, Output
 import datetime as dt
 import pandas as pd
 
+pd.set_option('display.float_format', lambda x: '%.2f' % x)
+
 # Function to generate a table in dash from a dataframe
 
 def generate_table(dataframe, max_rows=10):
@@ -25,20 +27,20 @@ def generate_table(dataframe, max_rows=10):
 
 dados = pd.read_csv('Dados/dengue_por_habitante.csv.gz')
 dados = dados[dados['dt_sintoma'] >= '2006-01-01']
-dados.por_habitante = round(100000*dados.por_habitante,2)
+#dados.por_habitante = round(100000*dados.por_habitante,2)
 
 # Read stationarity results
 
 st = pd.read_csv('Dados/stationarity.csv')
-st[['test_statistic','p-value']] = st[['test_statistic','p-value']].apply((lambda x: round(x,5)))
+#st[['test_statistic','p-value']] = st[['test_statistic','p-value']].apply((lambda x: round(x,5)))
 st.columns = ['City', 'Test statistic', 'p-Value', 'Stationary']
 
 # Read cross-correlations and prepared dataframe
 
 corrs = pd.read_csv('Dados/all_corrs.csv')
-corrs[['lag_0', 'lag_1', 'lag_2', 'lag_3', 'lag_4', 'lag_5', 'lag_6', 'lag_7', 'lag_8']] = \
-    corrs[['lag_0', 'lag_1', 'lag_2', 'lag_3', 'lag_4', 'lag_5', 'lag_6', 'lag_7', 'lag_8']] \
-        .apply((lambda x: round(x,2)))
+# corrs[['lag_0', 'lag_1', 'lag_2', 'lag_3', 'lag_4', 'lag_5', 'lag_6', 'lag_7', 'lag_8']] = \
+#     corrs[['lag_0', 'lag_1', 'lag_2', 'lag_3', 'lag_4', 'lag_5', 'lag_6', 'lag_7', 'lag_8']] \
+#         .apply((lambda x: round(x,2)))
 corrs.columns = ['municipio1', 'municipio2', 0, 1, 2, 3, 4, 5, 6, 7, 8]
 corrs = pd.melt(corrs, id_vars = ['municipio1', 'municipio2'], var_name='lag', value_name='correlation')
 

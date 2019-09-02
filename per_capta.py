@@ -31,7 +31,7 @@ for i in capitais.index:
 
 # Calculate dengue cases per capta
 
-dados['por_habitante'] = dados['ocorrencias']/dados['populacao']
+dados['por_habitante'] = 100000*dados['ocorrencias']/dados['populacao']
 dados.drop(columns='semana', inplace=True)
 
 # Write dataframe to CSV file
