@@ -29,7 +29,8 @@ cities = [(city,city) for city in dados.municipio.unique()]
 cities.extend(list(permutations(dados.municipio.unique(), 2)))
 cities = [[city1, city2] for (city1, city2) in cities]
 
-all_corrs = pd.DataFrame(cities, columns=['municipio1', 'municipio2']).sort_values(by=['municipio1', 'municipio2'])
+all_corrs = pd.DataFrame(cities, columns=['municipio1', 'municipio2'])\
+    .sort_values(by=['municipio1', 'municipio2'])
 
 for lag in range(0, 13):
     
@@ -44,7 +45,8 @@ for lag in range(0, 13):
         corrs.loc[city1, city2] = crosscorr(dados[dados.municipio == city1]['ocorrencias'],
                                             dados[dados.municipio == city2]['ocorrencias'],
                                             lag=lag)
-        all_corrs.loc[(all_corrs['municipio1'] == city1) & (all_corrs['municipio2'] == city2), lag_col] = corrs.loc[city1, city2]
+        all_corrs.loc[(all_corrs['municipio1'] == city1) & 
+                      (all_corrs['municipio2'] == city2), lag_col] = corrs.loc[city1, city2]
     
     corrs.to_csv('Dados/corrs_{}.csv'.format(str(lag)))
 

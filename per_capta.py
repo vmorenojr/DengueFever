@@ -35,5 +35,8 @@ dados['por_habitante'] = 100000*dados['ocorrencias']/dados['populacao']
 dados.drop(columns='semana', inplace=True)
 
 # Write dataframe to CSV file
+dados = dados[['dt_sintoma', 'co_municipio', 'municipio', 'estado', 'UF',
+               'regiao', 'latitude', 'longitude', 'populacao', 
+               'ocorrencias', 'por_habitante']]
 
 dados.to_csv('Dados/dengue_por_habitante.csv.gz', index=False)

@@ -35,11 +35,13 @@ dados = dados[['dt_sintoma','co_municipio','municipio','ocorrencias']]
 capitais = pd.read_csv('Dados/capitais.csv')
 dados = dados.merge(capitais, left_on='municipio', right_on='municipio')
 dados.drop(columns=['pop_2018', 'pop_2010', 'pop_2000'], inplace=True)
-dados.sort_values(by=['municipio','dt_sintoma'], inplace=True)
 
-#####
-##### Definir interpolação: https://docs.scipy.org/doc/scipy/reference/tutorial/interpolate.html
-#####
+# Get location and add to dataframe
+
+municipios = pd.read_csv('Dados/municipios.csv')
+dados = dados.merge(municipios, left_on='co_municipio', right_on='codigo_ibge')
+dados.drop(columns=['codigo_ibge','nome', 'capital', 'codigo_uf'], inplace=True)
+dados.sort_values(by=['municipio','dt_sintoma'], inplace=True)
 
 # Write dataframe to CSV file
 
