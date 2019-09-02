@@ -480,8 +480,8 @@ def update_regs(value):
             yaxis={'title': 'Weekly Reports'},
             height=600,
             hovermode='closest',
-            margin={'l':5, 'r':5, 'b':5, 't':20, 'pad':2},
-            xaxis_rangeslider_visible=True
+            margin={'l':5, 'r':5, 'b':5, 't':20, 'pad':2}#,
+            #xaxis_rangeslider_visible=True
         )
     }
     return regs_figure
@@ -507,8 +507,8 @@ def update_regs_hab(value):
             yaxis={'title': 'Weekly Reports per Capta'},
             height=600,
             margin={'l':5, 'r':5, 'b':5, 't':20, 'pad':2},
-            hovermode='closest',
-            xaxis_rangeslider_visible=True
+            hovermode='closest'#,
+            #xaxis_rangeslider_visible=True
         )
     }    
     return regs_hab_figure
