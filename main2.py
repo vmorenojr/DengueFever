@@ -39,14 +39,19 @@ fim = dados['dt_sintoma'].max()
 # Read stationarity results
 st = pd.read_csv('Dados/stationarity.csv')
 st.columns = ['City', 'Test statistic', 'p-Value', 'Stationary']
+st.drop('Stationary', axis=1, inplace=True)
+st = st.round(decimals=3)
 
 # Read cross-correlations and prepared dataframe
 corrs = pd.read_csv('Dados/all_corrs.csv')
-corrs.columns = ['municipio1', 'municipio2', 0, 1, 2, 3, 4, 5, 6, 7, 8]
+corrs.columns = ['municipio1', 'municipio2', 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 corrs = pd.melt(corrs, id_vars = ['municipio1', 'municipio2'], var_name='lag', value_name='correlation')
+corrs = corrs.round(decimals=2)
 
 # Read the state capitals data into a dataframe
 capitais = pd.read_csv('Dados/capitais.csv')
+municipios = capitais['municipio'].unique()
+municipios.sort()
 
 # Slice dataframe by year
 def slice_year(df, year1=inicio, year2=fim):
@@ -137,9 +142,6 @@ app.layout = html.Div([
             className='row',
             children=[
                 html.H6('Weekly Reports of Dengue Fever in Brazilian State Capitals'),
-                # html.Div(
-                #     className='twelve columns',
-                #     children=
                 dcc.Checklist(
                     id='get-regs',        
                     options=[{'label': regiao, 'value': regiao} 
@@ -188,6 +190,87 @@ app.layout = html.Div([
                     
                 )
         )
+    ]),
+    
+    dcc.Markdown(children='''
+        ### Stationarity Test
+        We used the [Augmented Dickey–Fuller test]
+        (https://en.wikipedia.org/wiki/Augmented_Dickey%E2%80%93Fuller_test)
+        to assess the stationarity of each state capital's time series. Time series 
+        cross-correlations may be inflated by trend and seasonality. It is important,
+        therefore to check the stationarity of the series before calculating cross-correlations. 
+        Below, we present the test results for the time series of the Brazilian capitals.
+        '''
+    ),
+    
+    # Plot stationarity table
+    html.Div(
+        children=generate_table(st)
+    ),
+  
+    dcc.Markdown('''
+        .
+        
+                 
+        The following chart presents the cross-correlations between a selected state capital (the base city) and 
+        the state capitals of selected regions.
+        
+        .             
+        '''),
+    
+    # Select cities and plot cross-correlations
+    html.Div([
+        html.Div(
+            className='row',
+            children=
+                html.H6('Cross-correlations between Time Series')
+        ),
+                 
+        # Select cities         
+        html.Div(
+            className='row',
+            children=[
+                html.Div(
+                    className='two columns',
+                    children='Select the base city:'),
+                html.Div(
+                    className='two columns',
+                    children=
+                        dcc.Dropdown(
+                            id='get-city',                
+                            options=[{'label': city, 'value': city} for city in municipios],
+                            value='Aracaju')
+                )
+            ]
+        ),
+        
+        html.Div(
+            className='row',
+            children=[
+                html.Div(
+                    className='two columns',
+                    children='Select regions:'),
+                html.Div(
+                    className='six columns',
+                    children=
+                        dcc.Checklist(
+                            id='get-regions',        
+                            options=[{'label': regiao, 'value': regiao} 
+                                    for regiao in regioes],
+                            value=regioes,
+                            labelStyle={'display': 'inline-block'}
+                        )
+                )
+            ]   
+        ),
+    
+        # Cross-correlation chart:
+        html.Div(
+            className='row',
+            children=
+                dcc.Graph(
+                    id='cross-corrs')
+        )
     ])
 ])
 
@@ -199,7 +282,7 @@ app.layout = html.Div([
      Output('ts-global-bar', 'figure')],    
     [Input('year-range', 'start_date'),
      Input('year-range', 'end_date')])
-def update_output(start_date, end_date):
+def update_line_bar(start_date, end_date):
     df_years = slice_year(dados, start_date, end_date)
     df = df_years.groupby('dt_sintoma')['ocorrencias'].sum()
     df = df.reset_index()
@@ -275,7 +358,7 @@ def update_regs_hab(value):
                 y = df[df['co_municipio'] == i]['por_habitante'],
                 text = df[df['co_municipio'] == i]['municipio'],
                 mode = 'lines',
-                name = df[df['co_municipio'] == i]['municipio'].iloc[0] 
+                name = df[df['co_municipio'] == i]['municipio'].iloc[0]
             ) for i in df['co_municipio'].unique()
         ],
         'layout': go.Layout(
@@ -289,5 +372,40 @@ def update_regs_hab(value):
     }    
     return regs_hab_figure
 
+@app.callback(
+    Output('cross-corrs', 'figure'),
+    [Input('get-city', 'value'),
+     Input('get-regions', 'value')])
+def update_crosscorr(base, regions):
+    if len(regions) <= 1:
+        regions = list(regions)
+    
+    cities = dados[dados['regiao'].isin(regions)]['municipio'].unique()
+        
+    df = corrs[(corrs['municipio1'] == base) &
+               (corrs['municipio2'].isin(cities))]
+    
+    corrs_figure = {
+        'data': [
+            go.Scatter(
+                x = df[df['municipio2'] == i]['lag'],
+                y = df[df['municipio2'] == i]['correlation'],
+                mode = 'lines',
+                text = df[df['municipio2'] == i]['municipio2'],
+                name = df[df['municipio2'] == i]['municipio2'].iloc[0]
+            ) for i in df['municipio2'].unique()
+        ],
+        'layout': go.Layout(
+            template = 'plotly_white',            
+            xaxis={'title': 'Lag (in weeks)'},
+            yaxis={'title': 'Correlation'},
+            hovermode='closest',
+            height=600
+        )
+    }
+    
+    return corrs_figure
+    
+                
 if __name__ == '__main__':
     app.run_server(debug=True)

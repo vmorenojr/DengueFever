@@ -31,7 +31,7 @@ cities = [[city1, city2] for (city1, city2) in cities]
 
 all_corrs = pd.DataFrame(cities, columns=['municipio1', 'municipio2']).sort_values(by=['municipio1', 'municipio2'])
 
-for lag in range(0, 9):
+for lag in range(0, 13):
     
     corrs = pd.DataFrame(index=dados.municipio.unique(),
                          columns=dados.municipio.unique())
