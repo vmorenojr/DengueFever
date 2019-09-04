@@ -1,0 +1,114 @@
+## Deploying Dash in Heroku (https://dash.plot.ly/deployment):
+
+To install the dash app in Heroku.com, follow the steps below (in Windows 10):
+
+1.  In your browser, go to www.heroku.com, create an account, and download and install the heroku cli
+
+2.  Copy the app files and folders into a new folder
+
+3.  Open the powershell in the new folder
+
+4.  Setup git:
+    $ git init
+
+5.  Create a virtual environment and activate it:
+    $ virtualenv venv
+    $ venv\Scripts\activate
+
+6.  Install the initial requirements:
+    $ pip install dash
+    $ pip install plotly
+    $ pip install gunicorn
+
+7.  Initialize the folder with a sample app (app.py), a .gitignore file, requirements.txt, and a Procfile. 
+    To create the .gitignore file:
+    - create a text file gitignore.txt.
+    - open it in a text editor and add your rules, then save and close.
+    - hold SHIFT, right click the folder you're in, then select Open command window here.
+    - rename the file in the command line, with ren gitignore.txt .gitignore.
+    
+    app.py
+
+        import os
+
+        import dash
+        import dash_core_components as dcc
+        import dash_html_components as html
+
+        external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+
+        app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+
+        server = app.server
+
+        app.layout = html.Div([
+            html.H2('Hello World'),
+            dcc.Dropdown(
+                id='dropdown',
+                options=[{'label': i, 'value': i} for i in ['LA', 'NYC', 'MTL']],
+                value='LA'
+            ),
+            html.Div(id='display-value')
+        ])
+
+        @app.callback(dash.dependencies.Output('display-value', 'children'),
+                      [dash.dependencies.Input('dropdown', 'value')])
+        def display_value(value):
+            return 'You have selected "{}"'.format(value)
+
+        if __name__ == '__main__':
+            app.run_server(debug=True)
+
+    .gitignore
+
+        venv
+        *.pyc
+        .DS_Store
+        .env
+
+    Procfile
+
+        web: gunicorn app:server    (Note that app refers to the filename app.py.
+                                     server refers to the variable server inside that file).
+
+    requirements.txt
+
+        requirements.txt describes your Python dependencies. You can fill this file in automatically with:
+        $ pip freeze > requirements.txt
+	
+        After generating the file, make sure it includes 'gunicorn==19.9.0'
+
+8.  In the powershell, login to heroku:
+    $ heroku login
+
+9.  Create your app in heroku:
+    $ heroku create -n denguebr
+    
+    Make sure you save your app's URL and git repository address (in heroku.com). Here are the 
+    links created for the denguebr app:
+    - https://denguebr.herokuapp.com/ 
+    - https://git.heroku.com/denguebr.git
+
+10. Prepare the first commit:
+    $ git add .
+    $ git commit -m 'Initial commit'
+
+11. Deploy code to heroku and run the app with a 1 heroku "dyno"
+    $ git push heroku master
+    $ heroku ps:scale web=1 
+
+12. To run your app, go to the link of the app in your browser
+
+13. Update the code and redeploy
+
+    When you modify app.py with your own code, you will need to add the changes to git
+    and push those changes to heroku.
+
+    $ git status                                     # view the changes
+    $ git add .                                      # add all the changes
+    $ git commit -m 'a description of the changes'
+    $ git push heroku master
+
+pip install -r requirements.txt
+
+
