@@ -1,3 +1,7 @@
-#Ignore python checkpoints
+venv
+*.pyc
+.DS_Store
+.env
+# Ignore python checkpoints
 .ipynb_checkpoints/
 .__pycache__/
