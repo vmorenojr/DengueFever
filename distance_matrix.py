@@ -26,7 +26,7 @@ distance_mun = pd.DataFrame(index=mun,columns=mun)
 #For each state, get the distance from every state in Brazil
 
 for i in range(0,27):
-    matrix = gmaps.distance_matrix(estados[i],estados)
+    matrix = gmaps.distance_matrix(states[i],states)
     for j in range(0,27):
         try:
             distance_mun.iloc[i,j] = round(matrix['rows'][0]['elements'][j]['distance']['value']/1000000,2)
@@ -55,7 +55,7 @@ def haversine(lon1, lat1, lon2, lat2):
     r = 6371 # Radius of earth in kilometers.
     return(c * r)
 
-missing_states = [[estados[12],12],[estados[20],20]]
+missing_states = [[states[12],12],[states[20],20]]
 
 #Get the latitude and longitude of these states and insert into the distance_matrix
 for x in missing_states:
@@ -63,7 +63,7 @@ for x in missing_states:
     lon1 = e1[0]['geometry']['location']['lng']
     lat1 = e1[0]['geometry']['location']['lat']   
     for i in range(0,27):
-        e2 = gmaps.geocode(estados[i])
+        e2 = gmaps.geocode(states[i])
         lon2 = e2[0]['geometry']['location']['lng']
         lat2 = e2[0]['geometry']['location']['lat']
         distance_mun.iloc[x[1],i] = round(haversine(lon1,lat1,lon2,lat2)/1000,2)
