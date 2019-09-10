@@ -68,9 +68,20 @@ municipios.sort()
 # Read the XGBoost results
 xgb_trees = pd.read_csv('Dados/xgboost_estimators_1.csv')
 xgb_learning = pd.read_csv('Dados/xgboost_estimators_01.csv')
-xgb_test = pd.read_csv('Dados/xgboost_pred.csv.gz')
-xgb_test = xgb_test.merg(dados, how='left', left_on='index', right_index=True)
 
+bh = pd.read_csv('Dados/Datasets/Belo Horizonte.csv.gz')
+xgb_test = pd.read_csv('Dados/xgboost_pred.csv.gz')
+bh_xgb = bh.reset_index().drop(['capital'], axis=1)
+xgb_test = xgb_test.merge(bh_xgb, how='left', left_on='index', right_on='index')
+xgb_test.drop(['Unnamed: 0', 'index', 'lag_x', 'por_habitante_x', 'distancia_x', 
+               'ocorrencias_alvo', 'por_habitante_alvo_y'], axis=1, inplace=True)
+xgb_test.rename(columns={'por_habitante_alvo_x': 'por_habitante_alvo',
+                         'lag_y': 'lag', 
+                         'por_habitante_y': 'por_habitante',
+                         'distancia_y': 'distancia'}, 
+                inplace=True)
+xgb_test.drop_duplicates(subset='data_alvo', inplace=True)
+xgb_test.sort_values(by='data_alvo', inplace=True)
 
 ## Auxiliary functions
 
@@ -818,11 +829,12 @@ app.layout = html.Div([
                         
                         The RMSE of the predicted values was 108.5, which is quite similar
                         to what was obtained in the training and validation stages. This
-                        RMSE is similar to the standard deviation of the target feature
-                        in the original dataset.
+                        RMSE is quite high, and similar to the standard deviation of the
+                        target feature in the original dataset.
                         
-                        However, the chart to the right shows that the predicted values
-                        were quite off the observed values.
+                        The chart to the right confirms that the predicted values 
+                        (in red) were quite off the observed values (in blue). Thus,
+                        our model had a poor predictive power.
                         ''')
                     
             ),
@@ -834,10 +846,17 @@ app.layout = html.Div([
                         figure = {
                             'data': [
                                 go.Scatter(
-                                    x = xgb_learning['Trees'],
-                                    y = xgb_learning['Mean RMSE'],
+                                    x = xgb_test['data_alvo'],
+                                    y = xgb_test['por_habitante_pred'],
                                     mode = 'lines',
                                     line=dict(color='firebrick'),
+                                    showlegend = False
+                                ),
+                                go.Scatter(
+                                    x = xgb_test['data_alvo'],
+                                    y = xgb_test['por_habitante_alvo'],
+                                    mode = 'lines',
+                                    line=dict(color='darkblue'),
                                     showlegend = False
                                 )],
                             'layout': go.Layout(
