@@ -68,6 +68,8 @@ municipios.sort()
 # Read the XGBoost results
 xgb_trees = pd.read_csv('Dados/xgboost_estimators_1.csv')
 xgb_learning = pd.read_csv('Dados/xgboost_estimators_01.csv')
+xgb_test = pd.read_csv('Dados/xgboost_pred.csv.gz')
+xgb_test = xgb_test.merg(dados, how='left', left_on='index', right_index=True)
 
 
 ## Auxiliary functions
@@ -562,7 +564,7 @@ app.layout = html.Div([
             html.H4('Modeling'),
     
             dcc.Markdown('''
-                We randomly split the resulting dataset in a training set and a testing set, with 70% and 30%
+                We randomly split the resulting dataset in a training set and a testing set, with 75% and 25%
                 of the original data. We used K-folding with five folds to train and validate the model with the
                 training dataset.
                 
@@ -798,7 +800,59 @@ app.layout = html.Div([
                     )
             )
         ]
-    )
+    ),
+    html.Br(),
+    
+    html.H4('Testing'),
+    
+    html.Div(
+        className='row',    
+        children=[
+            html.Div(
+                className='six columns',
+                children=
+                    dcc.Markdown('''
+                        We used XGBoost with the previously defined hyperparameters
+                        to predict the number of cases of Dengue fever per 100,000k
+                        population in Belo Horizonte, the capital of Minas Gerais state.
+                        
+                        The RMSE of the predicted values was 108.5, which is quite similar
+                        to what was obtained in the training and validation stages. This
+                        RMSE is similar to the standard deviation of the target feature
+                        in the original dataset.
+                        
+                        However, the chart to the right shows that the predicted values
+                        were quite off the observed values.
+                        ''')
+                    
+            ),
+            html.Div(
+                className='six columns',
+                children=
+                    dcc.Graph(
+                        id='xg_test',
+                        figure = {
+                            'data': [
+                                go.Scatter(
+                                    x = xgb_learning['Trees'],
+                                    y = xgb_learning['Mean RMSE'],
+                                    mode = 'lines',
+                                    line=dict(color='firebrick'),
+                                    showlegend = False
+                                )],
+                            'layout': go.Layout(
+                                    template='plotly_white',
+                                    title= 'Mean RMSE by Number of Trees in the Model',            
+                                    xaxis={'title': 'Number of Trees'},
+                                    yaxis={'title': 'Mean RMSE'},
+                                    hovermode='closest',
+                                    margin={'l':30, 'r':30, 'b':10, 't':30}
+                                    )
+                            }
+                    )
+            )
+        ]
+    ),
 ])
 
 
