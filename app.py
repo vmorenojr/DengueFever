@@ -65,6 +65,26 @@ capitais = pd.read_csv('Dados/capitais.csv')
 municipios = capitais['municipio'].unique()
 municipios.sort()
 
+# Read the XGBoost results
+xgb_trees = pd.read_csv('Dados/xgboost_estimators_1.csv')
+xgb_learning = pd.read_csv('Dados/xgboost_estimators_01.csv')
+
+bh = pd.read_csv('Dados/Datasets/Belo Horizonte.csv.gz')
+xgb_test = pd.read_csv('Dados/xgboost_pred.csv.gz')
+bh_xgb = bh.reset_index().drop(['capital'], axis=1)
+xgb_test = xgb_test.merge(bh_xgb, how='left', left_on='index', right_on='index')
+xgb_test.drop(['Unnamed: 0', 'index', 'lag_x', 'por_habitante_x', 'distancia_x', 
+               'ocorrencias_alvo', 'por_habitante_alvo_y'], axis=1, inplace=True)
+xgb_test.rename(columns={'por_habitante_alvo_x': 'por_habitante_alvo',
+                         'lag_y': 'lag', 
+                         'por_habitante_y': 'por_habitante',
+                         'distancia_y': 'distancia'}, 
+                inplace=True)
+xgb_test.drop_duplicates(subset='data_alvo', inplace=True)
+xgb_test.sort_values(by='data_alvo', inplace=True)
+
+## Auxiliary functions
+
 # Slice dataframe by year
 def slice_year(df, year1=inicio, year2=fim):
     return df[(df['dt_sintoma'] >= year1) & 
@@ -500,7 +520,358 @@ app.layout = html.Div([
                     )
             )
         ]
-    )
+    ),
+    
+    html.H3('Predicting Dengue Fever Epidemics'),
+    
+    # Data preparation
+    html.Div(
+        className='row',    
+        children=[    
+            html.H4('Data Preparation'),
+    
+            dcc.Markdown('''
+                The dataset used for training, testing and validating our models was created from the historical 
+                dengue fever reports database obtained from InfoDengue and the distances between Brazilian state
+                capitals obtained with the Google Maps API. The dataset includes the following features:
+                - __*capital*__: the name of the state capital for which we want to predict the number of Dengue 
+                fever reports
+                - __*data_alvo*__: the week for which we want to make the prediction
+                - __*ocorrencias_alvo*__: number of Dengue fever reports to be predicted
+                - __*por_habitante_alvo*__: number of Dengue fever reports per 100,000 population to be predicted
+                - __*municipio*__: name of the state capital whose data is used to make the prediction
+                - __*dt_sintoma*__: the week in which the Dengue fever reports in 'municipio' were tallied 
+                - __*lag*__: the difference in weeks between 'data_alvo' and 'data_sintoma'
+                - __*ocorrencias*__: the number of Dengue fever reports in 'data_sintoma' in 'municipio'
+                - __*por_habitante*__: the number of Dengue fever reports per 100,000 population in 'data_sintoma'
+                in municipio
+                - __*distancia*__: the distance in 100 meters between 'capital' and 'municipio'
+                
+                We used 'lag', 'distancia' and 'ocorrencias' (or 'por_habitante') as predictors of 
+                'ocorrencias_alvo' (or 'por_habitante_alvo').
+                '''
+            ),
+            html.Br(),
+            
+            dcc.Markdown('''
+                Due to computer resources constraints, data from the following time periods
+                were used to train, test and validate the models:
+                - __*'data_alvo'*__: May 5, 2019 to May 11, 2014, that is, a five-year period
+                - __*'dt_sintoma'*__: for each date in 'data_alvo', we considered all weeks from the preceding three
+                years
+                
+                Thus, for each date for which we wanted to predict the number of Dengue fever reports, we had 
+                27 state capitals * 52 weeks in a year * 3 years = 4,212 data points. The historical data for 'capital'
+                was also included as a predictor.
+                '''
+            )
+        ]
+    ),
+    
+    # Modeling
+    html.Div(
+        className='row',    
+        children=[    
+            html.H4('Modeling'),
+    
+            dcc.Markdown('''
+                We randomly split the resulting dataset in a training set and a testing set, with 75% and 25%
+                of the original data. We used K-folding with five folds to train and validate the model with the
+                training dataset.
+                
+                Due to computer resources constraints, we selected three cities of different regions and with 
+                quite distinct total number of Dengue fever cases as the targets of our prediction efforts. 
+                The total number of reported Dengue fever cases in each Brazilian state capital since
+                May 11, 2014 is reported below.
+            '''),
+            
+            html.Div(
+                children=generate_table(dados.loc[dados.dt_sintoma >='2014-05-11',
+                                                  ['municipio', 'ocorrencias', 'por_habitante']]\
+                                             .groupby('municipio')\
+                                             .sum()\
+                                             .round(decimals=2)\
+                                             .reset_index(),
+                                        max_rows=27)
+            ),
+            html.Br(),
+            
+            dcc.Markdown('''
+                The following state capitals were selected: 
+                  - __*Fortaleza*__: the city has average number of cases and number of cases per
+                  100,000k population, and is located in the Northeast region of Brazil
+                  - __*Belo Horizonte*__: the city has large number of cases and number of cases 
+                  per 100,000k population, and is located in the Southeast region
+                  - __*Florianópolis*__:the city has small number of cases and number of cases per 
+                  100,000k population, and is located in the South region
+                
+                
+                To improve accuracy, individual models were generated for each city. In a country as big 
+                as Brazil, distant cities are prone to be subjected to the influence of different
+                factors that were not included in our dataset.
+                
+                Two machine learning techniques were used to predict Degue fever epidemics: **XGBoost** and
+                **Neural Networks**.
+                '''
+            )
+        ]
+    ),
+    
+    # XGBoost
+    html.Div(
+        className='row',    
+        children=[    
+            html.H5('XGBoost'),
+
+            dcc.Markdown('''
+                XGBoost is an optimized gradient-boosting machine learning (ML) library 
+                that has APIs in several languages, including Python. Its popularity is due not 
+                only to its superior speed and support for parallelization, but also its
+                excellent performance. XGBoost has consistently outpeformed most of the
+                single-algorithm methods available to this point in many ML tasks.
+                
+                Our searches in the literature and the Web suggested that the tree-based 
+                XGBoost usually shows a better performance than the linear algorithm. 
+                We used the first option in our analysis and adopted the RMSE as our 
+                performance measure to evaluate our models.
+                
+                The following steps were used to train and define the hyperparameters (
+                [XGBoost, 2019](https://xgboost.readthedocs.io/en/latest/parameter.html);
+                [Jain, 2016](https://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/);
+                [Cambridge Spark, 2017](https://blog.cambridgespark.com/hyperparameter-tuning-in-xgboost-4ff9100a3b2f)):
+                
+                
+                First, we chose a learning rate of 0.1 and used xgboost *cv* function to obtain
+                the optimum number of trees. XGBoost's *cv* performs cross-validation at each boosting
+                iteration and returns the optimum number of trees. We set the number of folds to five.
+                
+                
+                Second, we tuned two of the most important tree-specific parameters, *max_depth* and
+                *min_child_weight* for the selected learning rate and the number of trees found in the
+                previous step. We used scikit learn's *GridSearchCV* with five folds for this purpose.
+                
+                
+                Third, we tried to reduce model complexity and enhance performance by tuning the
+                parameters *gamma*, *subsample*, and *colsample_bytree*.
+                  
+                  
+                Finally, we lowered the learning rate to define the optimal set of parameters.
+                
+                
+                Our findings are reported in more detail below.
+            ''')
+        ]
+    ),
+    
+    html.H6('Number of trees'),
+        
+    html.Div(
+        className='row',    
+        children=[
+            html.Div(
+                className='six columns',
+                children=
+                    dcc.Markdown('''
+                        We followed the guidelines obtained in the above-mentioned documents
+                        and defined the following initial values for our parameters:
+                        - __*learning_rate*__: .1
+                        - __*min_child_weight*__: 1          
+                        - __*max_depth*__: 6
+                        - __*gamma*__: 0
+                        - __*subsample*__: 1
+                        
+                        In XGBoost's *cv*, we set maximum number of boosting rounds to 1000, with an early 
+                        stopping at 50 rounds. The results are shown in the chart to the
+                        right.
+                        
+                        We compromised between performance, the availability
+                        computational resources and the possibility of overfitting, 
+                        deciding to set the number of trees to 25. The corresponding RMSE was 107.9.
+                    ''')
+            ),
+                       
+            html.Div(
+                className='six columns',
+                children=
+                    dcc.Graph(
+                        id='xg_trees',
+                        figure = {
+                            'data': [
+                                go.Scatter(
+                                    x = xgb_trees['Trees'],
+                                    y = xgb_trees['Mean RMSE'],
+                                    mode = 'lines',
+                                    line=dict(color='firebrick'),
+                                    showlegend = False
+                                )],
+                            'layout': go.Layout(
+                                    template='plotly_white',
+                                    title= 'Mean RMSE by Number of Trees in the Model',            
+                                    xaxis={'title': 'Number of Trees'},
+                                    yaxis={'title': 'Mean RMSE'},
+                                    hovermode='closest',
+                                    margin={'l':30, 'r':30, 'b':10, 't':30}
+                                    )
+                            }
+                    )
+            )
+        ]
+    ),
+    html.Br(),
+    
+    html.H6('Tuning *max_depth* and *min_child_weight*'),
+    
+    dcc.Markdown('''
+        We used scikit-learn's GridSearchCV to optimize the maximum depth
+        and the minimum sum of instance weight (hessian) needed in a child.
+        We used the following values:
+        - __*min_child_weight*__: .1, .5, 1, 2, 5          
+        - __*max_depth*__: 4, 6, 8, 10
+        
+        The optimal settings were *'max_depth'* = 4, and *min_child_weight* = 2.
+        
+        Given the importance of those hyperparameters, we tried to refine 
+        the optimal results by varying them with smaller increments. The 
+        following values were tested in the second round:
+        - __*min_child_weight*__: 1.5, 2, 2.5       
+        - __*max_depth*__: 3, 4, 5
+        
+        The optimal values were *'max_depth'* = 5, and *min_child_weight* = 2.5.
+        '''
+    ),
+    html.Br(),
+            
+    html.H6('Tuning  *gamma*, *subsample* and *colsample_bytree*'),
+
+    dcc.Markdown('''
+        Using the previously defined hyperparameters, we used again scikit-learn's 
+        GridSearchCV to try to optimize the minimum loss reduction required to make a further
+        partition on a leaf node of the tree (*gamma*), the *subsample* ratio of the
+        training instances, and the subsample ratio of columns when constructing each 
+        tree (*colsample_bytree*). We tested the following values:
+        - __*gamma*__: 0, .1, .25, .5, 1, 2          
+        - __*subsample*__: .3, .6, 1
+        - __*colsample_bytree*__: .3, .6, 1
+                        
+        The optimal settings were *'gamma'* = 0, *'subsample'* = 1, and *'colsample_bytree'* = 1.
+        '''
+    ),
+    html.Br(),
+    
+    html.H6('Tuning *learning_rate*'),
+            
+    html.Div(
+        className='row',    
+        children=[
+            html.Div(
+                className='six columns',
+                children=[
+                    dcc.Markdown('''
+                        In a final step, we return to XGBoost's *cv* to test a lower learning rate,
+                        while at the same time allowing the number of trees to increase. The 
+                        learning rate (or eta) is the step size shrinkage (error "correction") used
+                        to prevent overfitting. After each boosting step, it reduces the feature 
+                        weights to make the boosting process more conservative.
+                        
+                        The following settings were used:
+                        - __*learning_rate*__: .01 
+                        - __*num_boost_round*__: 5000
+                        '''),
+                    html.Br(),
+                    
+                    dcc.Markdown('''
+                        Based on the chart to the right, the best number of estimators (trees) would
+                        be around 250. The corresponding RMSE was 108.6.
+                        ''')
+                ]
+            ),
+            html.Div(
+                className='six columns',
+                children=
+                    dcc.Graph(
+                        id='xg_learning',
+                        figure = {
+                            'data': [
+                                go.Scatter(
+                                    x = xgb_learning['Trees'],
+                                    y = xgb_learning['Mean RMSE'],
+                                    mode = 'lines',
+                                    line=dict(color='firebrick'),
+                                    showlegend = False
+                                )],
+                            'layout': go.Layout(
+                                    template='plotly_white',
+                                    title= 'Mean RMSE by Number of Trees in the Model',            
+                                    xaxis={'title': 'Number of Trees'},
+                                    yaxis={'title': 'Mean RMSE'},
+                                    hovermode='closest',
+                                    margin={'l':30, 'r':30, 'b':10, 't':30}
+                                    )
+                            }
+                    )
+            )
+        ]
+    ),
+    html.Br(),
+    
+    html.H4('Testing'),
+    
+    html.Div(
+        className='row',    
+        children=[
+            html.Div(
+                className='six columns',
+                children=
+                    dcc.Markdown('''
+                        We used XGBoost with the previously defined hyperparameters
+                        to predict the number of cases of Dengue fever per 100,000k
+                        population in Belo Horizonte, the capital of Minas Gerais state.
+                        
+                        The RMSE of the predicted values was 108.5, which is quite similar
+                        to what was obtained in the training and validation stages. This
+                        RMSE is quite high, and similar to the standard deviation of the
+                        target feature in the original dataset.
+                        
+                        The chart to the right confirms that the predicted values 
+                        (in red) were quite off the observed values (in blue). Thus,
+                        our model had a poor predictive power.
+                        ''')
+                    
+            ),
+            html.Div(
+                className='six columns',
+                children=
+                    dcc.Graph(
+                        id='xg_test',
+                        figure = {
+                            'data': [
+                                go.Scatter(
+                                    x = xgb_test['data_alvo'],
+                                    y = xgb_test['por_habitante_pred'],
+                                    mode = 'lines',
+                                    line=dict(color='firebrick'),
+                                    showlegend = False
+                                ),
+                                go.Scatter(
+                                    x = xgb_test['data_alvo'],
+                                    y = xgb_test['por_habitante_alvo'],
+                                    mode = 'lines',
+                                    line=dict(color='darkblue'),
+                                    showlegend = False
+                                )],
+                            'layout': go.Layout(
+                                    template='plotly_white',
+                                    title= 'Mean RMSE by Number of Trees in the Model',            
+                                    xaxis={'title': 'Number of Trees'},
+                                    yaxis={'title': 'Mean RMSE'},
+                                    hovermode='closest',
+                                    margin={'l':30, 'r':30, 'b':10, 't':30}
+                                    )
+                            }
+                    )
+            )
+        ]
+    ),
 ])
 
 
