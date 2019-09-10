@@ -547,6 +547,22 @@ app.layout = html.Div([
                 in municipio
                 - __*distancia*__: the distance in 100 meters between 'capital' and 'municipio'
                 
+                Since we wanted to predict dengue cases in the Brazilian state capitals taking into account 
+                their proximity, we chose initially to compute the distance between the cities using possible
+                paths instead of the great circle distance. For this purpose, we decided to use the Google 
+                Maps API.
+                
+                We obtained an API key from Google API services to use it with the googlemaps library in 
+                python. Then, for every state, we obtained the distances and created a distance matrix to
+                store all the data. 
+                
+                Nevertheless, afterward, we noticed that, for the states of Amapá and Acre, googlemaps
+                could not find any valid route between their capitals and any other Brazilian state
+                capitals in Brazil. Because of this, we reverted to use the great circle distances, 
+                which we computed using the Haversine formula. The formula takes has as input the
+                coordinates of the cities, and generates the distance in kilometers of the great
+                circle between the cities. 
+
                 We used 'lag', 'distancia' and 'ocorrencias' (or 'por_habitante') as predictors of 
                 'ocorrencias_alvo' (or 'por_habitante_alvo').
                 '''

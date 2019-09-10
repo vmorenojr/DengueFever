@@ -1,21 +1,29 @@
-#  To install xgboost: https://www.building-skynet.com/2018/08/03/xgboost-part-un-installation/
-#
-#  Using this magic website by researchers at UC Irvine where they have put plenty of libraries there. 
-#  I actually remember using their website in my early Python days to install some libraries 
-#  (pre Anaconda days!)
-#  
-#  Go to https://www.lfd.uci.edu/~gohlke/pythonlibs/#xgboost and download the correct version 
-#  of the .whl file for your system. Pay attention to which version of Python you are using 
-#  and whether you are on a 32 bit or 64 bit machine (if you have only one Python on your machine,
-#  open Command Prompt and type python –version)
-# 
-#  Open the terminal, cd to the directory where you downloaded the file in and type:
-#  $ pip install xgboost-0.72-cp36-cp36m-win_amd64.whl (I don`t think I have to remind you to 
-#                                                       use the file name of your downloaded file!)
-#
-#  This should be it! Open your code editor and type import xgboost as xgb to see if it works.
+# -------------------
+# XGBoost instalation
+# -------------------
+'''
+    To install xgboost: https://www.building-skynet.com/2018/08/03/xgboost-part-un-installation/
 
+    Using this magic website by researchers at UC Irvine where they have put plenty of libraries there. 
+    I actually remember using their website in my early Python days to install some libraries 
+    (pre Anaconda days!)
+
+    Go to https://www.lfd.uci.edu/~gohlke/pythonlibs/#xgboost and download the correct version 
+    of the .whl file for your system. Pay attention to which version of Python you are using 
+    and whether you are on a 32 bit or 64 bit machine (if you have only one Python on your machine,
+    open Command Prompt and type python –version)
+
+    Open the terminal, cd to the directory where you downloaded the file in and type:
+    $ pip install xgboost-0.72-cp36-cp36m-win_amd64.whl (I don`t think I have to remind you to 
+                                                        use the file name of your downloaded file!)
+
+    This should be it! Open your code editor and type import xgboost as xgb to see if it works.
+'''
+
+# ----------------
 # Import libraries
+# ----------------
+
 import xgboost as xgb
 import pandas as pd
 import numpy as np
@@ -27,10 +35,15 @@ from sklearn.metrics import mean_squared_error
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+# -------------
 # Load the data
-#fortaleza = pd.read_csv('Dados/Datasets/Fortaleza.csv.gz')
-#floripa = pd.read_csv('Dados/Datasets/Florianópolis.csv.gz')
+# -------------
+
 bh = pd.read_csv('Dados/Datasets/Belo Horizonte.csv.gz')
+
+# -------------------
+# Auxiliary functions
+# -------------------
 
 # Generate training and test datasets
 def split(df, outcome, seed=12345):
@@ -42,28 +55,8 @@ def split(df, outcome, seed=12345):
                                                         random_state=seed)
     return X_train, X_test, y_train, y_test
 
-# ML
-def ml(Xtrain, Xtest, ytrain, ytest, linear=True, alpha=1):
-        
-    if linear:
-        DM_train = xgb.DMatrix(data=Xtrain, label=ytrain)
-        DM_test = xgb.DMatrix(data=Xtest, label = ytest)
-        params = {'booster': 'gblinear', 'objective':'reg:squarederror',
-                  'alpha': alpha}
-        xg_reg = xgb.train(params=params, dtrain=DM_train, num_boost_round=10)
-        preds = xg_reg.predict(DM_test)
-    else:
-        xg_reg = xgb.XGBRegressor(objective='reg:squarederror',
-                                n_estimators=10,
-                                seed=12345)
-        xg_reg.fit(Xtrain, ytrain)
-        preds = xg_reg.predict(Xtest)
-       
-    rmse = np.sqrt(mean_squared_error(ytest, preds))
-    return rmse
-
-# Fix learning rate and number of estimators for tuning tree-based parameters 
-def test_tree(X, y, params_dict, folds=5, num_boost_round=500, early_stopping_rounds=25):
+# Get number of estimators
+def get_tree(X, y, params_dict, folds=5, num_boost_round=500, early_stopping_rounds=25):
     DM_data = xgb.DMatrix(data=X, label=y)
     
     cv_results = xgb.cv(dtrain=DM_data, 
@@ -77,8 +70,8 @@ def test_tree(X, y, params_dict, folds=5, num_boost_round=500, early_stopping_ro
     
     return cv_results
 
-# Validation
-def test_params(X, y, params_dict, random=True, iterations=100, folds=5):
+# Get optimal parameters
+def get_hyper(X, y, params_dict, random=True, iterations=100, folds=5):
     gbm = xgb.XGBRegressor()
     
     if random:
@@ -96,9 +89,23 @@ def test_params(X, y, params_dict, random=True, iterations=100, folds=5):
                                   verbose=1)
     search_mse.fit(X, y)
     return search_mse.best_params_, np.sqrt(np.abs(search_mse.best_score_))
+
+# Test the model
+def test(Xtrain, Xtest, ytrain, ytest, params, seed):
+    xg_reg = xgb.XGBRegressor(objective='reg:squarederror',
+                              params=params,
+                              seed=seed)
+    xg_reg.fit(Xtrain, ytrain)
+    preds = xg_reg.predict(Xtest)
+    
+    rmse = np.sqrt(mean_squared_error(ytest, preds))
+    preds_pd = pd.Series(preds)
+    
+    return rmse, preds_pd
   
-# Validation of parameters
-# https://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/
+# ------------------------------------------
+# Training and validation of hyperparameters
+# ------------------------------------------
 
 # Split the dataset
 X_train, X_test, y_train, y_test = split(bh, outcome='por_habitante')
@@ -115,7 +122,7 @@ params = {'learning_rate': .1,
           'gamma': 0,
           'subsample': 1}
 
-best_estimators = test_tree(X_train, y_train, params_dict=params,
+best_estimators = get_tree(X_train, y_train, params_dict=params,
                             num_boost_round=1000, early_stopping_rounds=50)
 print('Optimal number of estimators for number of cases in Belo Horizonte:')
 print(best_estimators)
@@ -136,7 +143,7 @@ params = {'learning_rate': [.1],
           'gamma': [0],
           'subsample': [1]}
 
-best_pars, best_rmse = test_params(X_train, y_train, random=False, iterations=5, params_dict=params)
+best_pars, best_rmse = get_hyper(X_train, y_train, random=False, iterations=5, params_dict=params)
 print('Best RMSE for number of cases in Belo Horizonte:')
 print(best_pars)
 print(best_rmse)
@@ -153,7 +160,7 @@ params = {'learning_rate': [.1],
           'gamma': [0],
           'subsample': [1]}
 
-best_pars, best_rmse = test_params(X_train, y_train, random=False, iterations=5, params_dict=params)
+best_pars, best_rmse = get_hyper(X_train, y_train, random=False, iterations=5, params_dict=params)
 print('Best RMSE for number of cases in Belo Horizonte:')
 print(best_pars)
 print(best_rmse)
@@ -170,7 +177,7 @@ params = {'learning_rate': [.1],
           'gamma': [0, .1, .25, .5, 1, 2],
           'subsample': [1]}
 
-best_pars, best_rmse = test_params(X_train, y_train, random=False, iterations=5, params_dict=params)
+best_pars, best_rmse = get_hyper(X_train, y_train, random=False, iterations=5, params_dict=params)
 print('Best RMSE for number of cases in Belo Horizonte:')
 print(best_pars)
 print(best_rmse)
@@ -188,7 +195,7 @@ params = {'learning_rate': [.1],
           'subsample': [.3, .6, 1],
           'colsample_bytree': [.3, .6, 1]}
 
-best_pars, best_rmse = test_params(X_train, y_train, random=False, iterations=5, params_dict=params)
+best_pars, best_rmse = get_hyper(X_train, y_train, random=False, iterations=5, params_dict=params)
 print('Best RMSE for number of cases in Belo Horizonte:')
 print(best_pars)
 print(best_rmse)
@@ -204,7 +211,7 @@ params = {'learning_rate': .01,
           'gamma': 0,
           'subsample': 1}
 
-best_estimators = test_tree(X_train, y_train, params_dict=params,
+best_estimators = get_tree(X_train, y_train, params_dict=params,
                             num_boost_round=5000, early_stopping_rounds=50)
 print('Optimal number of estimators for number of cases in Belo Horizonte:')
 print(best_estimators)
@@ -216,3 +223,29 @@ best_estimators.reset_index(inplace=True)
 best_estimators.rename(columns={'index':'Trees', 'test-rmse-mean': 'Mean RMSE'}, 
                        inplace=True)
 best_estimators.to_csv('Dados/xgboost_estimators_01.csv')
+
+# -----------------
+# Testing the model
+# -----------------
+
+params = {'learning_rate': .01,
+          'n_estimators': 250,
+          'min_child_weight': 2.5,          
+          'max_depth': 5,
+          'gamma': 0,
+          'subsample': 1}
+
+rmse_test, predicted = test(X_train, X_test, y_train, y_test, 
+                            params=params, 
+                            seed=12345)
+print('RMSE for the test dataset: % 5.2f' %(rmse_test))
+
+df_predicted = y_test.to_frame().reset_index()
+df_predicted['por_habitante_pred'] = predicted
+df_predicted = df_predicted.merge(X_test.reset_index(),
+                                  left_index=True,
+                                  right_index=True)
+df_predicted.drop('index_y', axis=1, inplace=True)
+df_predicted.rename(columns={'index_x':'index'}, inplace=True)
+
+df_predicted.to_csv('Dados/xgboost_pred.csv.gz')
