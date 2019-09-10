@@ -1,4 +1,4 @@
-import pandas as ps
+import pandas as pd
 import googlemaps as gmp
 
 #Key to use googlemaps API
@@ -33,12 +33,8 @@ for i in range(0,27):
         except:
             continue
             
-            
-            
-            
 #Googlemaps couldn't get the distances for 2 states: 
 #Macapá and Rio Branco, therefore we will get the great circle distance between these states and every other state in Brazil
-
 
 def haversine(lon1, lat1, lon2, lat2): 
     from math import radians, cos, sin, asin, sqrt
