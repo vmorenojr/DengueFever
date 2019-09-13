@@ -28,11 +28,12 @@ import xgboost as xgb
 import pandas as pd
 import numpy as np
 from datetime import datetime as dt
+from datetime import timedelta
 import matplotlib.pyplot as plt
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -40,11 +41,19 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 # Load the data
 # -------------
 
-bh = pd.read_csv('Dados/Dengue_por_habitante.csv.gz')
-bh = bh[(bh['dt_sintoma'] >= '2006-01-01') & (bh['municipio'] == 'Belo Horizonte')]
-bh.drop(['co_municipio', 'municipio', 'estado', 'UF', 'regiao', 'latitude', 'longitude',
-         'populacao'], axis=1, inplace=True)
-bh.dt_sintoma = pd.to_datetime(bh.dt_sintoma, format = '%Y-%m-%d %H:%M:%S')
+dados = pd.read_csv('Dados/Dengue_por_habitante.csv.gz')
+
+datasets = {}
+municipios = dados['municipio'].unique()
+
+for city in municipios:
+    df = dados[(dados['dt_sintoma'] >= '2006-01-01') & (dados['municipio'] == city)].copy()
+    df.drop(['co_municipio', 'municipio', 'estado', 'UF', 'regiao', 'latitude', 'longitude',
+            'populacao'], axis=1, inplace=True)
+    df.dt_sintoma = pd.to_datetime(df.dt_sintoma, format = '%Y-%m-%d %H:%M:%S')
+    datasets[city] = df
+
+bh = datasets['Belo Horizonte'].copy()
 
 # -------------------
 # Auxiliary functions
@@ -52,241 +61,168 @@ bh.dt_sintoma = pd.to_datetime(bh.dt_sintoma, format = '%Y-%m-%d %H:%M:%S')
 
 # Split time series
 def split_data(df, dates, split_date):
-    return df[df[dates] <= dt.strptime(split_date, '%Y-%m-%d')].copy(), \
-           df[df[dates] >  dt.strptime(split_date, '%Y-%m-%d')].copy()
+    return df[df[dates] <= split_date].copy(), \
+           df[df[dates] >  split_date].copy()
 
 # Create and append time series features
 def create_features(df, dates):
-    df['quarter'] = df[dates].dt.quarter
-    df['month'] = df[dates].dt.month
-    df['year'] = df[dates].dt.year
-    df['dayofyear'] = df[dates].dt.dayofyear
-    df['dayofmonth'] = df[dates].dt.day
-    df['weekofyear'] = df[dates].dt.weekofyear
+    df_new = df.copy()
+    df_new['year'] = df[dates].dt.year
+    df_new['quarter'] = df[dates].dt.quarter
+    df_new['month'] = df[dates].dt.month
+    df_new['weekofyear'] = df[dates].dt.weekofyear
+    df_new['dayofyear'] = df[dates].dt.dayofyear
+    df_new['dayofmonth'] = df[dates].dt.day
+    df_new.drop([dates, 'ocorrencias', 'por_habitante'], 
+                axis=1, inplace=True)
+    return df_new
 
-# Generate training and test datasets
-def split(df, outcome, seed=12345):
-    y = outcome + '_alvo'
-    X, y = df[['lag', outcome, 'distancia']], df[y]
+# Create lagged outcome
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y,
-                                                        test_size=.25,
-                                                        random_state=seed)
-    return X_train, X_test, y_train, y_test
+def create_lagged(df, dates, outcome, first_date, last_date, timedelta_lag):
+    first_lag_date = start_date - timedelta_lag
+    last_lag_date = end_date - timedelta_lag
+    lagged = df[(df[dates] >= first_lag_date) &
+                (df[dates] <= last_lag_date)][outcome]
+    return lagged
 
-# Get number of estimators
-def get_tree(X, y, params_dict, folds=5, num_boost_round=500, early_stopping_rounds=25):
-    DM_data = xgb.DMatrix(data=X, label=y)
+# Plot train and test time series
+def plot_ts(df_train, df_test, dates, outcome):
+    plt.figure(figsize=(10,5))
+    plt.xlabel('Time')
+    plt.ylabel('Number of reports')
+    plt.plot(df_train[dates], df_train[outcome], label='Training data')
+    plt.plot(df_test[dates], df_test[outcome], label='Test data')
+    plt.legend()
     
-    cv_results = xgb.cv(dtrain=DM_data, 
-                        params=params_dict,
-                        nfold=folds,
-                        num_boost_round=num_boost_round,
-                        early_stopping_rounds=early_stopping_rounds,
-                        metrics='rmse',
-                        as_pandas=True,
-                        seed=12345)
-    
-    return cv_results
+# Forecast on test set
+def plot_performance(base_df, test_df, predicted_df, dates, predicted, date_from, date_to, title=None):
+    plt.figure(figsize=(10,5))
+    if title == None:
+        plt.title('From {0} to {1}'.format(date_from, date_to))
+    else:
+        plt.title(title)
+    plt.xlabel('Time')
+    plt.ylabel('Number of reports')
+    plt.plot(base_df[dates], base_df[predicted], label='Data')
+    plt.plot(test_df[dates], predicted_df, label='Prediction')
+    plt.legend()
+    plt.xlim(left=date_from, right=date_to)
 
-# Get optimal parameters
-def get_hyper(X, y, params_dict, random=True, iterations=100, folds=5):
-    gbm = xgb.XGBRegressor()
-    
-    if random:
-        search_mse = RandomizedSearchCV(estimator=gbm,
-                                        param_distributions=params_dict,
-                                        n_iter=iterations,
-                                        scoring='neg_mean_squared_error',
-                                        cv=folds,
-                                        verbose=1)
-    else:    
-        search_mse = GridSearchCV(estimator=gbm,
-                                  param_grid=params_dict,
-                                  scoring='neg_mean_squared_error',
-                                  cv=folds,
-                                  verbose=1)
-    search_mse.fit(X, y)
-    return search_mse.best_params_, np.sqrt(np.abs(search_mse.best_score_))
+# Calculates MAPE given y_true and y_pred
+def mean_absolute_percentage_error(y_true, y_pred): 
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
-# Test the model
-def test(Xtrain, Xtest, ytrain, ytest, params, seed):
-    xg_reg = xgb.XGBRegressor(objective='reg:squarederror',
-                              params=params,
-                              seed=seed)
-    xg_reg.fit(Xtrain, ytrain)
-    preds = xg_reg.predict(Xtest)
-    
-    rmse = np.sqrt(mean_squared_error(ytest, preds))
-    preds_pd = pd.Series(preds)
-    
-    return rmse, preds_pd
+# Generate datasets, run XGBoost and present results
+def analysis(df, dates, outcome, start_date, end_date, split_date):
+    # Split the time series 
+    train, test = split_data(df, 'dt_sintoma', split_date)
 
+    # Plot time series
+    plot_ts(df_train=train, df_test=test, dates='dt_sintoma', outcome='ocorrencias')
+    plt.show()
 
+    # Create time series features
+    X_train, y_train = create_features(train, dates), train[outcome]
+    X_test, y_test = create_features(test, dates), test[outcome]
+
+    # Create and Train XGBoost Model
+    reg = xgb.XGBRegressor(n_estimators=1000, 
+                        objective='reg:squarederror')
+    reg.fit(X_train, y_train,
+            eval_set=[(X_train, y_train), (X_test, y_test)],
+            early_stopping_rounds=50, 
+            verbose=False)
+
+    # Feature Importances
+    xgb.plot_importance(reg, height=0.9)
+    plt.show()
+
+    # Generate forecast
+    y_pred = reg.predict(X_test)
+
+    # Plot forecast
+    plot_performance(base_df=df, 
+                    test_df=test,
+                    predicted_df=y_pred,
+                    dates=dates, 
+                    predicted=outcome, 
+                    date_from=start_date,
+                    date_to=end_date, 
+                    title='Original and Predicted Data')
+    plot_performance(base_df=df, 
+                    test_df=test,
+                    predicted_df=y_pred,
+                    dates=dates, 
+                    predicted=outcome, 
+                    date_from=split_date,
+                    date_to=end_date, 
+                    title='Test and Predicted Data')
+    plt.show()
+
+    # Computing the error
+    print('MSE = ', mean_squared_error(y_true=y_test, y_pred=y_pred))
+    print('MAE = ', mean_absolute_error(y_true=y_test, y_pred=y_pred))
+    print('MAPE = ', mean_absolute_percentage_error(y_true=y_test, y_pred=y_pred),
+          '\n', '\n')
+    
 # --------------
 # Baseline model
 # --------------
 
-# Split the time series 
-train, test = split_data(bh, 'dt_sintoma', '2017-08-01')
+# Define time series start and end, and split date
+end_date = dt.strptime('2019-05-05', '%Y-%m-%d')
+start_date = dt.strptime('2010-05-05', '%Y-%m-%d')
+split_date = dt.strptime('2018-05-05', '%Y-%m-%d')
 
-# Plot train and test time series
-plt.figure(figsize=(15,5))
-plt.xlabel('Time')
-plt.ylabel('Number of reports')
-plt.plot(train['dt_sintoma'],train['ocorrencias'])
-plt.plot(test['dt_sintoma'],test['ocorrencias'])
-plt.show()
+analysis(bh, 'dt_sintoma', 'ocorrencias', start_date, end_date, split_date)
 
-# Create time series features
+# -------------------------
+# Model with lagged outcome
+# -------------------------
 
+# Create lagged outcome and add as new columns
+for lag in range(1,9):
+    name = 'lag_' + str(lag)
+    lagged_ocorrencias = create_lagged(df=bh, 
+                                       dates='dt_sintoma', 
+                                       outcome='ocorrencias', 
+                                       first_date=start_date,
+                                       last_date=end_date, 
+                                       timedelta_lag=timedelta(weeks=lag))
+    lagged_ocorrencias.index += lag
+    bh[name] = lagged_ocorrencias
+    
+bh = bh[(bh['dt_sintoma']>= start_date) & 
+        (bh['dt_sintoma']<= end_date)]
 
-
-
+analysis(bh, 'dt_sintoma', 'ocorrencias', start_date, end_date, split_date)
 
 # ------------------------------------------
-# Training and validation of hyperparameters
+# Model with lagged outcome for other cities
 # ------------------------------------------
 
-# Split the dataset
-X_train, X_test, y_train, y_test = split(bh, outcome='por_habitante')
+bh = datasets['Belo Horizonte'].copy()
+bh.set_index('dt_sintoma', drop=False, inplace=True)
 
-X_train.to_csv('Dados/xtrain_bh.csv.gz')
-X_test.to_csv('Dados/xtest_bh.csv.gz')
-y_train.to_csv('Dados/ytrain_bh.csv.gz')
-y_test.to_csv('Dados/ytest_bh.csv.gz')
+# Create lagged outcome and add as new columns
+for city in municipios:
+    df_city = datasets[city].copy()
+    df_city.set_index('dt_sintoma', drop=False, inplace=True)
+    for lag in range(1,9):
+        name = city +'_' + str(lag)
+        lagged_ocorrencias = create_lagged(df=df_city, 
+                                           dates='dt_sintoma', 
+                                           outcome='ocorrencias', 
+                                           first_date=start_date,
+                                           last_date=end_date, 
+                                           timedelta_lag=timedelta(weeks=lag))
+        lagged_ocorrencias.index += timedelta(weeks=lag)
+        bh[name] = lagged_ocorrencias
+        
+bh = bh[(bh['dt_sintoma']>= start_date) & 
+        (bh['dt_sintoma']<= end_date)]
 
-# Step1: Fix learning rate and number of estimators for tuning tree-based parameters
-params = {'learning_rate': .1,
-          'min_child_weight': 1,          
-          'max_depth': 6,
-          'gamma': 0,
-          'subsample': 1}
-
-best_estimators = get_tree(X_train, y_train, params_dict=params,
-                            num_boost_round=1000, early_stopping_rounds=50)
-print('Optimal number of estimators for number of cases in Belo Horizonte:')
-print(best_estimators)
-
-plt.plot(best_estimators.index, best_estimators['test-rmse-mean'], label='linear')
-plt.show()
-
-best_estimators.reset_index(inplace=True)
-best_estimators.rename(columns={'index':'Trees', 'test-rmse-mean': 'Mean RMSE'}, 
-                       inplace=True)
-best_estimators.to_csv('Dados/xgboost_estimators_1.csv')
-
-# Step 2: Tune max_depth and min_child_weight
-params = {'learning_rate': [.1],
-          'min_child_weight': [.1, .5, 1, 2, 5],          
-          'max_depth': [4, 6, 8, 10],
-          'n_estimators': [25],
-          'gamma': [0],
-          'subsample': [1]}
-
-best_pars, best_rmse = get_hyper(X_train, y_train, random=False, iterations=5, params_dict=params)
-print('Best RMSE for number of cases in Belo Horizonte:')
-print(best_pars)
-print(best_rmse)
-
-# Initial results
-# {'subsample': 1, 'n_estimators': 25, 'min_child_weight': 2, 'max_depth': 4, 'learning_rate': 0.1, 'gamma': 0}
-# RMSE: 115.55052038968748
-
-# Refining the parameters
-params = {'learning_rate': [.1],
-          'min_child_weight': [1.5, 2, 2.5],          
-          'max_depth': [3, 4, 5],
-          'n_estimators': [25],
-          'gamma': [0],
-          'subsample': [1]}
-
-best_pars, best_rmse = get_hyper(X_train, y_train, random=False, iterations=5, params_dict=params)
-print('Best RMSE for number of cases in Belo Horizonte:')
-print(best_pars)
-print(best_rmse)
-
-# Refined results
-# {'subsample': 1, 'n_estimators': 25, 'min_child_weight': 2.5, 'max_depth': 5, 'learning_rate': 0.1, 'gamma': 0}
-# RMSE: 115.52004363204088
-
-# Step 3: Setting the gamma parameter
-params = {'learning_rate': [.1],
-          'min_child_weight': [2.5],          
-          'max_depth': [5],
-          'n_estimators': [25],
-          'gamma': [0, .1, .25, .5, 1, 2],
-          'subsample': [1]}
-
-best_pars, best_rmse = get_hyper(X_train, y_train, random=False, iterations=5, params_dict=params)
-print('Best RMSE for number of cases in Belo Horizonte:')
-print(best_pars)
-print(best_rmse)
-
-# Optimal gamma
-# {'gamma': 0, 'learning_rate': 0.1, 'max_depth': 5, 'min_child_weight': 2.5, 'n_estimators': 25, 'subsample': 1}
-# RMSE: 115.52004363204088
-
-# Step 4: Setting the subsample and colsample_bytree parameters
-params = {'learning_rate': [.1],
-          'min_child_weight': [2.5],          
-          'max_depth': [5],
-          'n_estimators': [25],
-          'gamma': [0],
-          'subsample': [.3, .6, 1],
-          'colsample_bytree': [.3, .6, 1]}
-
-best_pars, best_rmse = get_hyper(X_train, y_train, random=False, iterations=5, params_dict=params)
-print('Best RMSE for number of cases in Belo Horizonte:')
-print(best_pars)
-print(best_rmse)
-
-# Results
-# {'colsample_bytree': 1, 'gamma': 0, 'learning_rate': 0.1, 'max_depth': 5, 'min_child_weight': 2.5, 'n_estimators': 25, 'subsample': 1}
-# 115.52004363204088
-
-# Step5: Lower the learning rate while increasing the number of estimators
-params = {'learning_rate': .01,
-          'min_child_weight': 2.5,          
-          'max_depth': 5,
-          'gamma': 0,
-          'subsample': 1}
-
-best_estimators = get_tree(X_train, y_train, params_dict=params,
-                            num_boost_round=5000, early_stopping_rounds=50)
-print('Optimal number of estimators for number of cases in Belo Horizonte:')
-print(best_estimators)
-
-plt.plot(best_estimators.index, best_estimators['test-rmse-mean'], label='linear')
-plt.show()
-
-best_estimators.reset_index(inplace=True)
-best_estimators.rename(columns={'index':'Trees', 'test-rmse-mean': 'Mean RMSE'}, 
-                       inplace=True)
-best_estimators.to_csv('Dados/xgboost_estimators_01.csv')
-
-# -----------------
-# Testing the model
-# -----------------
-
-params = {'learning_rate': .01,
-          'n_estimators': 250,
-          'min_child_weight': 2.5,          
-          'max_depth': 5,
-          'gamma': 0,
-          'subsample': 1}
-
-rmse_test, predicted = test(X_train, X_test, y_train, y_test, 
-                            params=params, 
-                            seed=12345)
-print('RMSE for the test dataset: % 5.2f' %(rmse_test))
-
-df_predicted = y_test.to_frame().reset_index()
-df_predicted['por_habitante_pred'] = predicted
-df_predicted = df_predicted.merge(X_test.reset_index(),
-                                  left_index=True,
-                                  right_index=True)
-df_predicted.drop('index_y', axis=1, inplace=True)
-df_predicted.rename(columns={'index_x':'index'}, inplace=True)
-
-df_predicted.to_csv('Dados/xgboost_pred.csv.gz')
+analysis(bh, 'dt_sintoma', 'ocorrencias', start_date, end_date, split_date)
+print()
