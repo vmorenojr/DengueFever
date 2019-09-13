@@ -735,7 +735,7 @@ app.layout = html.Div([
     ),
     html.Br(),
     
-    html.H6('Tuning *max_depth* and *min_child_weight*'),
+    html.H6('Tuning max_depth and min_child_weight'),
     
     dcc.Markdown('''
         We used scikit-learn's GridSearchCV to optimize the maximum depth
@@ -757,7 +757,7 @@ app.layout = html.Div([
     ),
     html.Br(),
             
-    html.H6('Tuning  *gamma*, *subsample* and *colsample_bytree*'),
+    html.H6('Tuning gamma, subsample and colsample_bytree'),
 
     dcc.Markdown('''
         Using the previously defined hyperparameters, we used again scikit-learn's 
@@ -774,7 +774,7 @@ app.layout = html.Div([
     ),
     html.Br(),
     
-    html.H6('Tuning *learning_rate*'),
+    html.H6('Tuning learning_rate'),
             
     html.Div(
         className='row',    
