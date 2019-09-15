@@ -122,12 +122,12 @@ def mean_absolute_percentage_error(y_true, y_pred):
 def analysis(datasets, municipios, target_city, dates, outcome, 
              start_date, end_date, split_date, 
              plt_name_base, lag_weeks=0, range_weeks=8, 
-             all_cities=True, date_features=True, show=False):
+             lagged=True, date_features=True, show=False):
     
     df_city = datasets[city].copy()
     df_city.set_index(dates, drop=False, inplace=True)
 
-    if all_cities:
+    if lagged:
         # Create lagged outcome and add as new columns
         for capital in municipios:
             df_capital = datasets[capital].copy()
@@ -154,7 +154,7 @@ def analysis(datasets, municipios, target_city, dates, outcome,
             df_test=test, 
             dates=dates, 
             outcome=outcome)
-    #plt.savefig('Plots/ts-' + plt_name_base + '.png')
+    plt.savefig('Plots/ts-' + plt_name_base + '.png')
     if show:
         plt.show()
     else:
@@ -178,6 +178,7 @@ def analysis(datasets, municipios, target_city, dates, outcome,
             verbose=False)
 
     # Feature Importances
+    plt.rcParams['figure.figsize'] = (15, 10)
     xgb.plot_importance(reg, height=.9, max_num_features=30)
     plt.savefig('Plots/imp-' + plt_name_base + '.png')
     if show:
@@ -217,10 +218,10 @@ def analysis(datasets, municipios, target_city, dates, outcome,
     else:
         plt.close()
     
-    MSE = mean_squared_error(y_true=y_test, y_pred=y_pred)
+    RMSE = np.sqrt(mean_squared_error(y_true=y_test, y_pred=y_pred))
     MAE = mean_absolute_error(y_true=y_test, y_pred=y_pred)
     MAPE = mean_absolute_percentage_error(y_true=y_test, y_pred=y_pred)
-    return MSE, MAE, MAPE
+    return RMSE, MAE, MAPE
     
 # --------
 # Analysis
@@ -238,27 +239,73 @@ city = 'Belo Horizonte'
 outcome = 'ocorrencias'
 dates = 'dt_sintoma'
 
+# --------
+# Baseline
+# --------
+
+# Run analysis and store fit results
+RMSE, MAE, MAPE = analysis(datasets=datasets, municipios=['Belo Horizonte'], target_city=city, 
+                          dates=dates, outcome=outcome,
+                          start_date=start_date, end_date=end_date, split_date=split_date, 
+                          plt_name_base='base', 
+                          lagged=False,
+                          date_features=True,
+                          show = False)
+results = pd.DataFrame({'RMSE': RMSE, 'MAE': MAE, 'MAPE': MAPE}, index=[0])
+results.to_csv('XGB_fit/baseline.csv', index=False)
+print(results)
+
+# ------------------
+# Baseline with lags
+# ------------------
+
 # Create dataframe to store results
-results = pd.DataFrame(columns=['All cities', 'Lag (weeks)', 'Range (weeks)', 'MSE', 'MAE', 'MAPE'])
+results = pd.DataFrame(columns=['All cities', 'Lag (weeks)', 'Range (weeks)', 'RMSE', 'MAE', 'MAPE'])
 
 # Run analysis and store fit results
 for i in [4, 12, 26, 52]:
     for j in [8, 12, 26, 52]:
-        plt_base = 'l' + str(i) + 'r' + str(j) + 'caps'
-        MSE, MAE, MAPE = analysis(datasets=datasets, municipios=municipios, target_city=city, 
+        plt_base = 'base-l' + str(i) + 'r' + str(j)# + 'caps'
+        RMSE, MAE, MAPE = analysis(datasets=datasets, municipios=['Belo Horizonte'], target_city=city, 
                                   dates=dates, outcome=outcome,
                                   start_date=start_date, end_date=end_date, split_date=split_date, 
                                   plt_name_base=plt_base, 
                                   lag_weeks=i,
                                   range_weeks=j,
-                                  all_cities=True,
+                                  lagged=True,
                                   date_features=True,
                                   show = False)
+        results = results.append({'All cities': 'No', 
+                                'Lag (weeks)': i, 
+                                'Range (weeks)': j, 
+                                'RMSE': RMSE, 'MAE': MAE, 'MAPE': MAPE}, ignore_index=True)
+results.to_csv('XGB_fit/baseline-lags.csv', index=False)
+print(results)
 
+# -----------------------
+# Model with all capitals
+# -----------------------
+
+# Create dataframe to store results
+results = pd.DataFrame(columns=['All cities', 'Lag (weeks)', 'Range (weeks)', 'RMSE', 'MAE', 'MAPE'])
+
+# Run analysis and store fit results
+for i in [4, 12, 26, 52]:
+    for j in [8, 12, 26, 52]:
+        plt_base = 'all-l' + str(i) + 'r' + str(j)# + 'caps'
+        RMSE, MAE, MAPE = analysis(datasets=datasets, municipios=municipios, target_city=city, 
+                                  dates=dates, outcome=outcome,
+                                  start_date=start_date, end_date=end_date, split_date=split_date, 
+                                  plt_name_base=plt_base, 
+                                  lag_weeks=i,
+                                  range_weeks=j,
+                                  lagged=True,
+                                  date_features=True,
+                                  show = False)
         results = results.append({'All cities': 'Yes', 
                                 'Lag (weeks)': i, 
                                 'Range (weeks)': j, 
-                                'MSE': MSE, 'MAE': MAE, 'MAPE': MAPE}, ignore_index=True)
-
+                                'RMSE': RMSE, 'MAE': MAE, 'MAPE': MAPE}, ignore_index=True)
+results.to_csv('XGB_fit/allcaps.csv', index=False)
 print(results)
-results.to_csv('XGB_fit/caps_dates.csv')
+
