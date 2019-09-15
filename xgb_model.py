@@ -35,6 +35,9 @@ from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import warnings
+
+# set params
+pd.set_option('display.float_format', lambda x: '%.2f' % x)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # -------------
@@ -84,21 +87,20 @@ def create_lagged(df, dates, outcome, first_date, last_date, timedelta_lag):
     return lagged
 
 # Plot train and test time series
-def plot_ts(df_train, df_test, dates, outcome, plt_name):
-    plt.figure(figsize=(10,5))
+def plot_ts(df_train, df_test, dates, outcome):#, plt_name):
+    fig=plt.figure(figsize=(10,5))
     plt.title('Training and Test Time Series')
     plt.xlabel('Time')
     plt.ylabel('Number of reports')
     plt.plot(df_train[dates], df_train[outcome], label='Training data')
     plt.plot(df_test[dates], df_test[outcome], label='Test data')
     plt.legend()
-    #plt.savefig('Plots/' + plt_name + '.png')
-    #plt.close(fig)
+    return fig
     
 # Forecast on test set
 def plot_performance(base_df, test_df, predicted_df, dates, predicted, 
-                     date_from, date_to, plt_name, title=None):
-    #fig = plt.figure(figsize=(10,5))
+                     date_from, date_to, title=None):
+    fig = plt.figure(figsize=(10,5))
     if title == None:
         plt.title('From {0} to {1}'.format(date_from, date_to))
     else:
@@ -109,8 +111,7 @@ def plot_performance(base_df, test_df, predicted_df, dates, predicted,
     plt.plot(test_df[dates], predicted_df, label='Prediction')
     plt.legend()
     plt.xlim(left=date_from, right=date_to)
-    #plt.savefig('Plots/' + plt_name + '.png')
-    #plt.close(fig)
+    return fig
 
 # Calculates MAPE given y_true and y_pred
 def mean_absolute_percentage_error(y_true, y_pred): 
@@ -118,91 +119,112 @@ def mean_absolute_percentage_error(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
 # Generate datasets, run XGBoost and present results
-def analysis(datasets, target_city, dates, outcome, 
+def analysis(datasets, municipios, target_city, dates, outcome, 
              start_date, end_date, split_date, 
-             plt_name_base, all_cities=True):
+             plt_name_base, lag_weeks=0, range_weeks=8, 
+             all_cities=True, date_features=True, show=False):
     
     df_city = datasets[city].copy()
     df_city.set_index(dates, drop=False, inplace=True)
 
     if all_cities:
         # Create lagged outcome and add as new columns
-        for lag in range(1,9):
-            name = 'lag_' + str(lag)
-            lagged_ocorrencias = create_lagged(df=df_city, 
-                                            dates=dates, 
-                                            outcome=outcome, 
-                                            first_date=start_date,
-                                            last_date=end_date, 
-                                            timedelta_lag=timedelta(weeks=lag))
-            lagged_ocorrencias.index += timedelta(weeks=lag)
-            df_city[name] = lagged_ocorrencias
-            
-        df_city = df_city[(df_city[dates]>= start_date) & 
-                (df_city[dates]<= end_date)]
+        for capital in municipios:
+            df_capital = datasets[capital].copy()
+            df_capital.set_index(dates, drop=False, inplace=True)
+            for lag in range(1, range_weeks+1):
+                name = capital +'_' + str(lag)
+                lagged_ocorrencias = create_lagged(df=df_capital, 
+                                                   dates=dates, 
+                                                   outcome=outcome, 
+                                                   first_date=start_date-timedelta(weeks=lag_weeks-1),
+                                                   last_date=end_date-timedelta(weeks=lag_weeks-1), 
+                                                   timedelta_lag=timedelta(weeks=lag))
+                lagged_ocorrencias.index += timedelta(weeks=lag_weeks-1) + timedelta(weeks=lag)
+                df_city[name] = lagged_ocorrencias
+                
+    df_city = df_city[(df_city[dates]>= start_date) & 
+            (df_city[dates]<= end_date)]
 
     # Split the time series 
-    train, test = split_data(df, dates, split_date)
+    train, test = split_data(df_city, dates, split_date)
 
     # Plot time series
     plot_ts(df_train=train, 
             df_test=test, 
             dates=dates, 
-            outcome=outcome, 
-            plt_name=('ts-' + plt_name_base))
-    plt.show()
+            outcome=outcome)
+    #plt.savefig('Plots/ts-' + plt_name_base + '.png')
+    if show:
+        plt.show()
+    else:
+        plt.close()
     
     # Create time series features
-    X_train, y_train = create_features(train, dates), train[outcome]
-    X_test, y_test = create_features(test, dates), test[outcome]
+    if date_features:
+        X_train, y_train = create_features(train, dates), train[outcome]
+        X_test, y_test = create_features(test, dates), test[outcome]
+    else:
+        X_train, y_train = train.drop([dates,'ocorrencias', 'por_habitante'], axis=1), train[outcome]
+        X_test, y_test = test.drop([dates,'ocorrencias', 'por_habitante'], axis=1), test[outcome]
 
     # Create and Train XGBoost Model
     reg = xgb.XGBRegressor(n_estimators=1000, 
-                        objective='reg:squarederror')
+                           objective='reg:squarederror',
+                           seed=123)
     reg.fit(X_train, y_train,
             eval_set=[(X_train, y_train), (X_test, y_test)],
             early_stopping_rounds=50, 
             verbose=False)
 
     # Feature Importances
-    xgb.plot_importance(reg, height=.9, max_num_features=20)
-    plt.show()
+    xgb.plot_importance(reg, height=.9, max_num_features=30)
+    plt.savefig('Plots/imp-' + plt_name_base + '.png')
+    if show:
+        plt.show()
+    else:
+        plt.close()
     
     # Generate forecast
     y_pred = reg.predict(X_test)
 
     # Plot forecast
-    plot_performance(base_df=df, 
+    plot_performance(base_df=df_city, 
                      test_df=test,
                      predicted_df=y_pred,
                      dates=dates, 
                      predicted=outcome, 
                      date_from=start_date,
-                     date_to=end_date,
-                     plt_name=('or_pred-' + plt_name_base), 
+                     date_to=end_date, 
                      title='Original and Predicted Data')
-    plt.show()
+    #plt.savefig('Plots/tspred-' + plt_name_base + '.png')
+    if show:
+        plt.show()
+    else:
+        plt.close()
     
-    plot_performance(base_df=df, 
+    plot_performance(base_df=test, 
                      test_df=test,
                      predicted_df=y_pred,
                      dates=dates, 
                      predicted=outcome, 
                      date_from=split_date,
                      date_to=end_date, 
-                     plt_name=('test_pred-' + plt_name_base),
                      title='Test and Predicted Data')
-    plt.show()
+    plt.savefig('Plots/pred-' + plt_name_base + '.png')
+    if show:
+        plt.show()
+    else:
+        plt.close()
     
-    # Computing the error
-    print('MSE = ', mean_squared_error(y_true=y_test, y_pred=y_pred))
-    print('MAE = ', mean_absolute_error(y_true=y_test, y_pred=y_pred))
-    print('MAPE = ', mean_absolute_percentage_error(y_true=y_test, y_pred=y_pred),
-          '\n', '\n')
+    MSE = mean_squared_error(y_true=y_test, y_pred=y_pred)
+    MAE = mean_absolute_error(y_true=y_test, y_pred=y_pred)
+    MAPE = mean_absolute_percentage_error(y_true=y_test, y_pred=y_pred)
+    return MSE, MAE, MAPE
     
-# -------------------
-# Analysis parameters
-# -------------------
+# --------
+# Analysis
+# --------
 
 # Define time series start and end, and split date
 end_date = dt.strptime('2019-05-05', '%Y-%m-%d')
@@ -216,369 +238,27 @@ city = 'Belo Horizonte'
 outcome = 'ocorrencias'
 dates = 'dt_sintoma'
 
-# --------------
-# Baseline model
-# --------------
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-print('Results for baseline model:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, 'baseline')
-
-# ----------------------------------
-# Model with a 1-week lagged outcome
-# ----------------------------------
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for lag in range(1,9):
-    name = 'lag_' + str(lag)
-    lagged_ocorrencias = create_lagged(df=df_city, 
-                                       dates=dates, 
-                                       outcome=outcome, 
-                                       first_date=start_date,
-                                       last_date=end_date, 
-                                       timedelta_lag=timedelta(weeks=lag))
-    lagged_ocorrencias.index += timedelta(weeks=lag)
-    df_city[name] = lagged_ocorrencias
-    
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for baseline model with 1-week lagged outcome:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '1w')
-
-# ---------------------------------------------------
-# Model with a 1-week lagged outcome for other cities
-# ---------------------------------------------------
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date,
-                                           last_date=end_date, 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 1-week lagged outcomes:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '1wcaps')
-
-
-# ---------------------------------
-# Model with 1-year lagged outcome
-# ---------------------------------
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for lag in range(1,9):
-    name = 'lag_' + str(lag)
-    lagged_ocorrencias = create_lagged(df=df_city, 
-                                       dates=dates, 
-                                       outcome=outcome, 
-                                       first_date=start_date-timedelta(weeks=52),
-                                       last_date=end_date-timedelta(weeks=52), 
-                                       timedelta_lag=timedelta(weeks=lag))
-    lagged_ocorrencias.index += timedelta(weeks=lag)
-    df_city[name] = lagged_ocorrencias
-    
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for baseline model with 1-y lagged outcomes:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '1y')
-
-# --------------------------------------------------
-# Model with 1-year lagged outcome for other cities
-# --------------------------------------------------
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date-timedelta(weeks=52),
-                                           last_date=end_date-timedelta(weeks=52), 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 1-year lagged outcomes:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '1ycaps')
-
-# ----------------------------------------------------
-# Model with a 6-month lagged outcome for other cities
-# ----------------------------------------------------
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date-timedelta(weeks=26),
-                                           last_date=end_date-timedelta(weeks=26), 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 6-month lagged outcomes:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '6mcaps')
-
-# ----------------------------------------------------
-# Model with a 3-month lagged outcome for other cities
-# ----------------------------------------------------
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date-timedelta(weeks=12),
-                                           last_date=end_date-timedelta(weeks=12), 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 3-month lagged outcomes:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '3mcaps')
-
-# ----------------------------------------------------
-# Model with a 1-month lagged outcome for other cities
-# ----------------------------------------------------
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date-timedelta(weeks=4),
-                                           last_date=end_date-timedelta(weeks=4), 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 1-month lagged outcomes:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '1mcaps')
-
-# ---------------------------------------------------
-# Model with a 15-day lagged outcome for other cities
-# ---------------------------------------------------
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date-timedelta(weeks=2),
-                                           last_date=end_date-timedelta(weeks=2), 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 2-week lagged outcomes:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '2wcaps1')
-
-# ---------------------------------------------------------
-# Model with a 15-day lagged outcome and earlier split date
-# ---------------------------------------------------------
-
-split_date = dt.strptime('2017-05-05', '%Y-%m-%d')
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date-timedelta(weeks=2),
-                                           last_date=end_date-timedelta(weeks=2), 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 2-weeks lagged outcomes and split date 05-05-2017:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '2wcaps2')
-
-# --------------------------------------------------------------
-# Model with a 15-day lagged outcome and even earlier split date
-# --------------------------------------------------------------
-
-split_date = dt.strptime('2016-05-05', '%Y-%m-%d')
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date-timedelta(weeks=2),
-                                           last_date=end_date-timedelta(weeks=2), 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 2-weeks lagged outcomes and split date 05-05-2016:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '2wcaps3')
-
-
-# --------------------------------------------------------------
-# Model with a 1-year lagged outcome and even earlier split date
-# --------------------------------------------------------------
-
-split_date = dt.strptime('2016-05-05', '%Y-%m-%d')
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date-timedelta(weeks=52),
-                                           last_date=end_date-timedelta(weeks=52), 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 1-year lagged outcomes and split date 05-05-2016:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '1ycaps3')
-
-
-# --------------------------------------------------------------
-# Model with a 15-day lagged outcome and split date '05-05-2015'
-# --------------------------------------------------------------
-
-start_date = dt.strptime('2008-05-05', '%Y-%m-%d')
-split_date = dt.strptime('2015-05-05', '%Y-%m-%d')
-
-df_city = datasets[city].copy()
-df_city.set_index(dates, drop=False, inplace=True)
-
-# Create lagged outcome and add as new columns
-for capital in municipios:
-    df_capital = datasets[capital].copy()
-    df_capital.set_index(dates, drop=False, inplace=True)
-    for lag in range(1,9):
-        name = capital +'_' + str(lag)
-        lagged_ocorrencias = create_lagged(df=df_capital, 
-                                           dates=dates, 
-                                           outcome=outcome, 
-                                           first_date=start_date-timedelta(weeks=2),
-                                           last_date=end_date-timedelta(weeks=2), 
-                                           timedelta_lag=timedelta(weeks=lag))
-        lagged_ocorrencias.index += timedelta(weeks=lag)
-        df_city[name] = lagged_ocorrencias
-        
-df_city = df_city[(df_city[dates]>= start_date) & 
-        (df_city[dates]<= end_date)]
-
-print('Results for full model with 2-weeks lagged outcomes and split date 05-05-2015:')
-
-analysis(df_city, dates, outcome, start_date, end_date, split_date, '2wcaps3')
-
-
+# Create dataframe to store results
+results = pd.DataFrame(columns=['All cities', 'Lag (weeks)', 'Range (weeks)', 'MSE', 'MAE', 'MAPE'])
+
+# Run analysis and store fit results
+for i in [4, 12, 26, 52]:
+    for j in [8, 12, 26, 52]:
+        plt_base = 'l' + str(i) + 'r' + str(j) + 'caps'
+        MSE, MAE, MAPE = analysis(datasets=datasets, municipios=municipios, target_city=city, 
+                                  dates=dates, outcome=outcome,
+                                  start_date=start_date, end_date=end_date, split_date=split_date, 
+                                  plt_name_base=plt_base, 
+                                  lag_weeks=i,
+                                  range_weeks=j,
+                                  all_cities=True,
+                                  date_features=True,
+                                  show = False)
+
+        results = results.append({'All cities': 'Yes', 
+                                'Lag (weeks)': i, 
+                                'Range (weeks)': j, 
+                                'MSE': MSE, 'MAE': MAE, 'MAPE': MAPE}, ignore_index=True)
+
+print(results)
+results.to_csv('XGB_fit/caps_dates.csv')
