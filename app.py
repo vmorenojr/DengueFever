@@ -74,10 +74,17 @@ capitais = pd.read_csv('Dados/capitais.csv')
 municipios = capitais['municipio'].unique()
 municipios.sort()
 
+distances = pd.read_csv('Dados/distancias.csv')
+
 # Read XGBoost results
 bh_lags = pd.read_csv('XGB_fit/baseline-lags.csv')
 bh_caps = pd.read_csv('XGB_fit/allcaps.csv')
-
+bh_caps_no_time = pd.read_csv('XGB_fit/allcapsnotime.csv')
+bh_imp = pd.read_csv('XGB_fit/importances.csv')
+bh_imp = bh_imp.merge(distances[['municipio','Belo Horizonte']], how='left',
+                      left_on='City', right_on='municipio')\
+               .drop('municipio', axis=1)\
+               .rename(columns={'Belo Horizonte': 'Distance'})
 
 # -------------------
 # Auxiliary functions
@@ -344,7 +351,7 @@ app.layout = html.Div([
             className='row',
             children=
                 html.Div(
-                    className='ten columns',
+                    className='twelve columns',
                     children=
                         dcc.Graph(
                             id='ts-regs')
@@ -375,7 +382,7 @@ app.layout = html.Div([
             className='row',
             children=
                 html.Div(
-                    className='ten columns',
+                    className='twelve columns',
                     children=
                         dcc.Graph(
                             id='ts-regs-hab')
@@ -701,9 +708,9 @@ app.layout = html.Div([
         orange. In addition, we show the results obtained with the baseline model, which included only
         the date-related features as predictors. It is clear that the predictions were quite off the 
         actual values. The fit results we obtained were:
-        - RMSE: 1839.45
-        - MAE (Mean Absolute Error): 773.34
-        - MAPE (Mean Absolute Percentage Error): 146.88
+        - __*RMSE*__: 1839.45
+        - __*MAE (Mean Absolute Error)*__: 773.34
+        - __*MAPE (Mean Absolute Percentage Error)*__: 146.88
         '''),
     html.Br(),
     
@@ -714,13 +721,14 @@ app.layout = html.Div([
         relevant to prediction.  
         '''),
     
-    # Charts
+    # Charts: Baseline
     html.Div(
         className='row',
         children=[
             html.Div(
                 className='five columns',
                 children=[
+                    html.Br(),                
                     html.Img(src='data:image/png;base64,{}'.format(convert('ts-baseline.png')),
                              width=500, height=250),
                     html.Img(src='data:image/png;base64,{}'.format(convert('pred-base.png')),
@@ -738,39 +746,63 @@ app.layout = html.Div([
     html.Br(),      
     
     dcc.Markdown('''    
-        Next, we examined models with lagged data on the occurrence of Dengue in Belo Horizonte. 
-        Different lags and ranges of lagged ocurrences were tested. The following table
-        summarizes the fit results.             
+        Next, we examined models with lagged data on the occurrence of Dengue in Belo Horizonte only,
+        and with lagged data on the occurrence of Dengue in all state capitals, including Belo
+        Horizonte. Different lags and ranges of lagged ocurrences were tested. The following tables
+        summarize the fit results.
         '''),
+    html.Br(),
     
-    # Table: Fit results for Belo Horizonte
+    # Table: Fit results for Belo Horizonte for lagged outcomes
     html.Div(
         className='row',
         children=[
             html.Div(
                 className='six columns',
-                children=generate_table(bh_lags.drop('All cities', axis=1)\
+                children=[
+                    dcc.Markdown('''**Lagged outcomes for Belo Horizonte only**'''),
+                    generate_table(bh_lags.drop('All cities', axis=1)\
                                                .round(decimals=2), max_rows=20)
-            ),
+                ]
+            ),  
             html.Div(
                 className='six columns',
                 children=[
-                    html.Br(),
-                    dcc.Markdown('''    
-                        When compared with the baseline results, only those for a lag of four weeks showed 
-                        substantial improvements. It is interesting to note that the best results for RMSE 
-                        and MAPE were different. This applies to the results for all lags.               
-                    ''')
+                    dcc.Markdown('''**Lagged outcomes for all state capitals**'''),
+                    generate_table(bh_caps.drop('All cities', axis=1)\
+                                               .round(decimals=2), max_rows=20)
                 ]
             )
         ]
     ),
     html.Br(),
+    html.Br(),
     
     dcc.Markdown('''    
+        When compared with the baseline results, only those for a lag of four weeks showed 
+        substantial improvements. Oddly, when we compare the models with lagged outocmes for
+        Belo Horizonte only and for all state capitasl, the latter's results were consistently
+        better than the former's only for the 4-week lag. It is important to remember that
+        the second model includes the data on Belo Horizonte itself, as well as on the other
+        state capitals. Thus, it predictors contain all the information contained in the
+        predictors of the first model and more. This issue may be a result of the way the
+        XGBoost algorithm works and/or the default settings used in our exploratory 
+        analysis.
+        
+        It is also interesting to note that the best results for RMSE do not correspond
+        to the best results for MAPE. This applies to the results obtained for all lags.
+        The cause behind this apparent discrepancy is that RMSE is a measure of absolute
+        error, while MAPE is a measure of relative error. Thus, the value for MAPE may 
+        be high even when the absolute error (and thus RMSE) is low. We should note that
+        the number of cases of Dengue fever is very low for many of the weeks in our test
+        dataset. In such weeks, the squareroot of the squared error tend to be low, while
+        the absolute percent error may be quite high.
+    '''),
+    dcc.Markdown('''    
         The following charts compare the actual Dengue fever occurrences with
-        the predicted values. We selected those corresponding to the best RMSE 
-        result for each lag.
+        the predicted values for the models with data on Belo Horizonte only,
+        and on all state capitals. We selected the charts corresponding to the best RMSE 
+        result for each lag and each model.
         '''),
     html.Br(),
     
@@ -781,295 +813,429 @@ app.layout = html.Div([
             html.Div(
                 className='six columns',
                 children=[
+                    dcc.Markdown('''__*Lagged outcomes for Belo Horizonte only*__'''),
+                    html.Br(),
+                
                     dcc.Markdown('''**Lag: 4 weeks, Range: 1 year**'''),
                     html.Img(src='data:image/png;base64,{}'.format(convert('pred-base-l4r52.png')),
                              width=600, height=300),
                     
-                    dcc.Markdown('''**Lag: 6 months, Range: 12 weeks**'''),
-                    html.Img(src='data:image/png;base64,{}'.format(convert('pred-base-l26r12.png')),
-                             width=600, height=300)
-                ]
-            ),
-            html.Div(
-                className='six columns',
-                children=[
                     dcc.Markdown('''**Lag: 12 weeks, Range: 1 year**'''),
                     html.Img(src='data:image/png;base64,{}'.format(convert('pred-base-l12r52.png')),
+                             width=600, height=300),
+                    
+                    dcc.Markdown('''**Lag: 6 months, Range: 12 weeks**'''),
+                    html.Img(src='data:image/png;base64,{}'.format(convert('pred-base-l26r12.png')),
                              width=600, height=300),
                     
                     dcc.Markdown('''**Lag: 1 year, Range: 12 weeks**'''),
                     html.Img(src='data:image/png;base64,{}'.format(convert('pred-base-l52r12.png')),
                              width=600, height=300)
                 ]
+            ),
+            html.Div(
+                className='six columns',
+                children=[
+                    dcc.Markdown('''***Lagged outcomes for all state capitals***'''),
+                    html.Br(),
+                    
+                    dcc.Markdown('''**Lag: 4 weeks, Range: 6 months**'''),
+                    html.Img(src='data:image/png;base64,{}'.format(convert('pred-all-l4r26.png')),
+                             width=600, height=300),
+                    
+                    dcc.Markdown('''**Lag: 12 weeks, Range: 6 months**'''),
+                    html.Img(src='data:image/png;base64,{}'.format(convert('pred-all-l12r26.png')),
+                             width=600, height=300),
+                    
+                    dcc.Markdown('''**Lag: 6 months, Range: 8 weeks**'''),
+                    html.Img(src='data:image/png;base64,{}'.format(convert('pred-all-l26r8.png')),
+                             width=600, height=300),
+                    
+                    dcc.Markdown('''**Lag: 1 year, Range: 6 months**'''),
+                    html.Img(src='data:image/png;base64,{}'.format(convert('pred-all-l52r26.png')),
+                             width=600, height=300)
+                ]
             )
         ]
     ),
     html.Br(),   
+    html.Br(),
     
+    dcc.Markdown('''    
+        As expected, the charts for the lower values of lag show predictions closer to the
+        actual values. As the RMSE results suggested, the best fit were obtained with a
+        lag of four weeks. We will focus our subsequent analyses on models based on this
+        value of lag.        
+        '''),
+    dcc.Markdown('''    
+        First, however, we will use the importance plot generated by XGBoost to check the features
+        that were more relevant in the precdiction process. The following charts show the 30 most
+        important features for the two models.       
+        '''),
+    html.Br(),
     
-    # html.Div(
-    #     className='row',
-    #     children=[
-    #         html.Div(
-    #             className='five columns',
-    #             children=[
-    #                 html.Img(src='data:image/png;base64,{}'.format(convert('ts-baseline.png')),
-    #                          width=500, height=250),
-    #                 html.Img(src='data:image/png;base64,{}'.format(convert('pred-base.png')),
-    #                          width=500, height=250)
-    #             ]
-    #         ),
-    #         html.Div(
-    #             className='seven columns',
-    #             children=
-    #                 html.Img(src='data:image/png;base64,{}'.format(convert('imp-base.png')),
-    #                          width=780, height=520)
-    #         )
-    #     ]
-    # ),
+    # Charts: importance plots
+    html.Div(
+        className='row',
+        children=[
+            html.Div(
+                className='six columns',
+                children=[
+                    dcc.Markdown('''**Lag: 4 weeks, Range: 1 year, Belo Horizonte only**'''),
+                    html.Img(src='data:image/png;base64,{}'.format(convert('imp-base-l4r52.png')),
+                             width=540, height=360)
+                ]
+            ),
+            html.Div(
+                className='six columns',
+                children=[
+                    dcc.Markdown('''**Lag: 4 weeks, Range: 6 months, all state capitals**'''),
+                    html.Img(src='data:image/png;base64,{}'.format(convert('imp-all-l4r26.png')),
+                             width=540, height=360)
+                ]
+            )
+        ]
+    ),
+    html.Br(), 
     
+    dcc.Markdown('''    
+        The first time-related feature in the importance plot for the model with data on
+        Belo Horizonte only is the day of the yaer. In addition to it, week of the year
+        and year were among the 10 most imporant features for the prediction process.
+        
+        In contrast, the second chart shows no time-related features at all. Instead,
+        all listed features correspond to lagged outcomes for various cities. Belo
+        Horizonte itself is shown at the 21st position. In addition, eight or the
+        ten most important features are lagged outcomes for *Campo Grande* and *Aracaju*.
+        This finding may be related to the flow of travellers between Minas Gerais
+        state capital and those two cities.
+        
+        In any case, the importance plot for the second model suggests that 
+        the lagged time series for state capitals actually contain most of the 
+        information that is present in the time-related features  and that is useful
+        for predicting the occurrence of Dengue fever in Belo Horizonte. 
+        In addition, it is important to note that those time series implicitly 
+        contain information on the distance between the target state apital and
+        other state capitals. So the influece of a lagged outcome feature on the 
+        predicted outcome actually combines the influences of time, distance,
+        and the intensity of Dengue fever.
+        
+        Before we move to the next phase of our investigation, we will compare the
+        results generated with the model with lagged outcomes for all state capitals
+        as well as time-related features, and the same model with no time-related 
+        features.
+        '''),
+    html.Br(),
     
+    # Table: Fit results with and without time-related features
+    html.Div(
+        className='row',
+        children=[
+            html.Div(
+                className='six columns',
+                children=[
+                    dcc.Markdown('''**Lagged outcomes with time-related features**'''),
+                    generate_table(bh_lags[bh_lags['Lag (weeks)']==4]\
+                                        .drop('All cities', axis=1)\
+                                        .round(decimals=2), max_rows=20)
+                ]
+            ),  
+            html.Div(
+                className='six columns',
+                children=[
+                    dcc.Markdown('''**Lagged outcomes with no time-related features**'''),
+                    generate_table(bh_caps_no_time.drop('All cities', axis=1)\
+                                                  .round(decimals=2), max_rows=20)
+                ]
+            )
+        ]
+    ),
+    html.Br(),
+    html.Br(),
     
+    # Charts: Fit results with and without time-related features
+    html.Div(
+        className='row',
+        children=[
+            html.Div(
+                className='six columns',
+                children=[
+                    dcc.Markdown('''**Lag: 4 weeks, Range: 6 months, with time-related features**'''),
+                    html.Img(src='data:image/png;base64,{}'.format(convert('pred-all-l4r26.png')),
+                             width=540, height=360)
+                ]
+            ),
+            html.Div(
+                className='six columns',
+                children=[
+                    dcc.Markdown('''**Lag: 4 weeks, Range: 6 months, no time-related features**'''),
+                    html.Img(src='data:image/png;base64,{}'.format(convert('pred-all-no-time-l4r26.png')),
+                             width=540, height=360)
+                ]
+            )
+        ]
+    ),
+    html.Br(),
     
+    dcc.Markdown('''    
+        Remarkably, the second table shows that the elimination of the 
+        time-related predictors actually improved the RMSE for all the
+        ranges. Accordingly, the second chart, which was generated with
+        the combination of lag and range with the lowest RMSE, 
+        does show an improvement in fit, although it may seem minor
+        at first.
+        
+        Given these results, we will focus our efforts of a model with 
+        a lag of four weeks, a range of six months, and no time-related 
+        features.               
+        '''),
+    html.Br(),
     
-    
-    
-    
-    
-    
-    
-    
-    dcc.Markdown('''                  
+    html.H6('Tuning the hyperparameters'),
+      
+    dcc.Markdown('''
         The following steps were used to train and define the hyperparameters (
         [XGBoost, 2019](https://xgboost.readthedocs.io/en/latest/parameter.html);
         [Jain, 2016](https://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/);
         [Cambridge Spark, 2017](https://blog.cambridgespark.com/hyperparameter-tuning-in-xgboost-4ff9100a3b2f)):
+        '''),
+    
+    html.Div(
+        className='row',
+        children=[
+            html.Div(
+                className='one column'
+            ),
+            html.Div(
+                className='eleven columns',
+                children=
+                    dcc.Markdown('''
+                        First, we chose a learning rate of 0.3 and fit models for different number of trees.
+                        The remaining hyperparameters were set to their defaults.
+                                        
+                        Second, we tuned two of the most important tree-specific parameters, *max_depth* and
+                        *min_child_weight* for the selected learning rate and the number of trees found in the
+                        previous step.
+                                        
+                        Third, we tried to reduce model complexity and enhance performance by tuning the
+                        parameters *gamma*, *subsample*, and *colsample_bytree*.
+                                            
+                        Finally, we lowered the learning rate to define the optimal set of parameters.
+                    ''')
+            )
+        ]
+    ),
+    
+    dcc.Markdown('''     
+        As pointed out by [Cochrane, 2018]
+        (https://towardsdatascience.com/time-series-nested-cross-validation-76adba623eb9),
+        cros-validation methods, such as k-folding, should not be employed to validate
+        time series models. Instead, she suggests the usage of a nested cross-validation
+        procedure, which "provides an almost unbiased estimate of the true error"
+        (Varma & Simon, 2006 apud Cochrane, 2018). In addition, to reduce the chances
+        of getting a biased estimate of prediction error, Chochane argues that the
+        validation and test procedure should employ the 
+        rolling-origin-recalibration method (Bergmeir and Benítez, 2012).
         
-        First, we chose a learning rate of 0.1 and used xgboost *cv* function to obtain
-        the optimum number of trees. XGBoost's *cv* performs cross-validation at each boosting
-        iteration and returns the optimum number of trees. We set the number of folds to five.
-                        
-        Second, we tuned two of the most important tree-specific parameters, *max_depth* and
-        *min_child_weight* for the selected learning rate and the number of trees found in the
-        previous step. We used scikit learn's *GridSearchCV* with five folds for this purpose.
-                        
-        Third, we tried to reduce model complexity and enhance performance by tuning the
-        parameters *gamma*, *subsample*, and *colsample_bytree*.
-                            
-        Finally, we lowered the learning rate to define the optimal set of parameters.
-                        
+        In the following analyses, we followed Cochrane's suggestion, adopting a
+        period of 12 weeks as the unit for the rolling-origin-recalibration 
+        method. Thus, as our dataset comprised 469 weeks, we had 39 time units for 
+        testing purposes.
+        
         Our findings are reported in more detail below.
-    ''')
+    '''),
     
-    # html.H6('Number of trees'),
+    # Number of trees
+    dcc.Markdown('''
+        ** Number of trees:**
         
-    # html.Div(
-    #     className='row',    
-    #     children=[
-    #         html.Div(
-    #             className='six columns',
-    #             children=
-    #                 dcc.Markdown('''
-    #                     We followed the guidelines obtained in the above-mentioned documents
-    #                     and defined the following initial values for our parameters:
-    #                     - __*learning_rate*__: .1
-    #                     - __*min_child_weight*__: 1          
-    #                     - __*max_depth*__: 6
-    #                     - __*gamma*__: 0
-    #                     - __*subsample*__: 1
-                        
-    #                     In XGBoost's *cv*, we set maximum number of boosting rounds to 1000, with an early 
-    #                     stopping at 50 rounds. The results are shown in the chart to the
-    #                     right.
-                        
-    #                     We compromised between performance, the availability
-    #                     computational resources and the possibility of overfitting, 
-    #                     deciding to set the number of trees to 25. The corresponding RMSE was 107.9.
-    #                 ''')
-    #         ),
-                       
-    #         html.Div(
-    #             className='six columns',
-    #             children=
-    #                 dcc.Graph(
-    #                     id='xg_trees',
-    #                     figure = {
-    #                         'data': [
-    #                             go.Scatter(
-    #                                 x = xgb_trees['Trees'],
-    #                                 y = xgb_trees['Mean RMSE'],
-    #                                 mode = 'lines',
-    #                                 line=dict(color='firebrick'),
-    #                                 showlegend = False
-    #                             )],
-    #                         'layout': go.Layout(
-    #                                 template='plotly_white',
-    #                                 title= 'Mean RMSE by Number of Trees in the Model',            
-    #                                 xaxis={'title': 'Number of Trees'},
-    #                                 yaxis={'title': 'Mean RMSE'},
-    #                                 hovermode='closest',
-    #                                 margin={'l':30, 'r':30, 'b':10, 't':30}
-    #                                 )
-    #                         }
-    #                 )
-    #         )
-    #     ]
-    # ),
-    # html.Br(),
+        We followed the guidelines obtained in the above-mentioned documents
+        and defined the following initial values for our parameters:
+        - __*learning_rate*__: .3
+        - __*min_child_weight*__: 1          
+        - __*max_depth*__: 6
+        - __*gamma*__: 0
+        - __*subsample*__: 1
+        - __*colsample_bytree*__: .75
+         
+        We set maximum number of boosting rounds to values varying from 500 to
+        10000, with an early stopping at 50 rounds. The changes in the hyperparameter
+        had a very low effect on the RMSE, which remained pratically constant at
+        125.8. We set it to the minimum value we tested, that is, 500. 
+    '''),
+    html.Br(),
     
-    # html.H6('Tuning max_depth and min_child_weight'),
-    
-    # dcc.Markdown('''
-    #     We used scikit-learn's GridSearchCV to optimize the maximum depth
-    #     and the minimum sum of instance weight (hessian) needed in a child.
-    #     We used the following values:
-    #     - __*min_child_weight*__: .1, .5, 1, 2, 5          
-    #     - __*max_depth*__: 4, 6, 8, 10
+    # max_depth and min_child_weight 
+    dcc.Markdown('''
+        **Maximum depth of a tree and minimum weight in a child**
         
-    #     The optimal settings were *'max_depth'* = 4, and *min_child_weight* = 2.
+        The XGBoost documentation informst that increasing the value of *'max_depth'*
+        will make the model more complex and more likely to overfit. It also warns 
+        that XGBoost aggressively consumes memory when training a deep tree.
         
-    #     Given the importance of those hyperparameters, we tried to refine 
-    #     the optimal results by varying them with smaller increments. The 
-    #     following values were tested in the second round:
-    #     - __*min_child_weight*__: 1.5, 2, 2.5       
-    #     - __*max_depth*__: 3, 4, 5
+        The minimum sum of instance weight needed in a child is defined by the 
+        *'max_depth'* hyperparameter. According to the XGBoost documentation, the
+        partitioning process will stop when the tree partition step results in a 
+        leaf node with the sum of instance weight less than min_child_weight. 
+        Thus, the larger its value is, the more conservative the algorithm will be.
         
-    #     The optimal values were *'max_depth'* = 5, and *min_child_weight* = 2.5.
-    #     '''
-    # ),
-    # html.Br(),
+        Given above information, we decided to vary the *'max_depth'* hyperparameter
+        between 3 and 11, and the *min_child_weight* hyperparameter between 1 and 15. 
+        The number of trees fixed at 500, and the remaining hyperparameters were set 
+        as before.
+                     
+        The optimal combination of values was *'max_depth'* = 5 and *min_child_weight* = 5.
+        The corresponding RMSE was 77.38.
+        '''),
+    html.Br(),
             
-    # html.H6('Tuning gamma, subsample and colsample_bytree'),
+    # gamma, subsample and colsample_bytree  
+    dcc.Markdown('''
+        **Minimum loss reduction and subsample ratio**
+        
+        Using the previously defined hyperparameters, we tried to optimize the minimum 
+        loss reduction required to make a further partition on a leaf node of the tree 
+        (*gamma*), the *subsample* ratio of the training instances, and the subsample
+        ratio of columns when constructing each tree (*colsample_bytree*). 
+        
+        We tested the following values for *'gamma' ranging from 0 to 100000. The 
+        hyperparameter seemed to have litle influence on the RMSE, as only for 
+        very large values did the RMSE increased. We decided to leave it
+        set to 0. The re-calibration of the number of trees was not necessary, then.
+        
+        Nest, we tried combinations of values between 0.1 and 1.0 for the subsample 
+        hyperparameters. The optimal values were *'subsample'* = 1 and *'colsample_bytree'* 
+        = 1, which resulted in a RMSE value of 60.71.
+        '''),
+    html.Br(),
+    
+    # learning_rate
+    dcc.Markdown('''
+        **Maximum depth of a tree and minimum weight in a child**
+        
+        The XGBoost documentation informst that increasing the value of *'max_depth'*
+        will make the model more complex and more likely to overfit. It also warns 
+        that XGBoost aggressively consumes memory when training a deep tree.
+        
+        The minimum sum of instance weight needed in a child is defined by the 
+        *'max_depth'* hyperparameter. According to the XGBoost documentation, the
+        partitioning process will stop when the tree partition step results in a 
+        leaf node with the sum of instance weight less than min_child_weight. 
+        Thus, the larger its value is, the more conservative the algorithm will be.
+        
+        Given above information, we decided to vary the *'max_depth'* hyperparameter
+        between 3 and 11, and the *min_child_weight* hyperparameter between 1 and 15. 
+        The number of trees fixed at 500, and the remaining hyperparameters were set 
+        as before.
+                     
+        The optimal combination of values was *'max_depth'* = 5 and *min_child_weight* = 5.
+        The corresponding RMSE was 77.38.
+        '''),
+    html.Br(),
+            
+    dcc.Markdown('''
+        **Learning rate**
+        
+        In the step of the tuning process, we tested lower values for learning rate,
+        while at the same time increasing the number of trees. The 
+        learning rate (or eta) is the step size shrinkage (error "correction") used
+        to prevent overfitting. After each boosting step, it reduces the feature 
+        weights to make the boosting process more conservative.
+        
+        We teste learning rate values between .01 and .75, for numbers of trees between
+        100 and 5000. The optimal setting was *'learning_rate'* = .275 and 
+        *'num_boost_round'* = 500. The corresponding RMSE was 55.59.
+        '''),
+    html.Br(),
+    
+    html.H4('Testing'),
+    
+    dcc.Markdown('''
+        We used XGBoost with the previously defined hyperparameters
+        to predict the number of cases of Dengue fever per in Belo Horizonte, 
+        the capital of Minas Gerais state. As explained above, to obtain
+        a unbiased estimate of the prediction error, we employed the
+        rolling-origin-recalibration method with a
+        period of 12 weeks as the testing window.
+        
+        The mean value for the RMSE obtained in the process was 627.18
+        which is well below the values obtained with the models we 
+        ran in the exploratory analysis. However, while the latter
+        predicted values over a period of one year, the former predicted
+        values for several twelve-week periods. Thus, the results should not
+        be compared directly.
+                                
+        Because of this, we used the trained and validated model to predict the
+        number of Dengue fever cases from May 05, 2018 to May 05,
+        2019. The RMSE of the predicted values was 921.21, which is practically
+        the same that we obtained in the exploratory analysis for the model with
+        lagged outcomes for all cities and no time-related featues. 
+        
+        Below, we present the chart comparing the actual and predicted values for
+        our final XGBoost model. As expected, it was very similar to that 
+        generated for the last model tested in the exploratory analysis. The chart
+        is followed by the importance plot for the 30 most important features
+        in the final model.
+        '''),
+    
+    # Chart: final model
+    html.Div(
+        className='row',
+        children=[
+            html.Img(src='data:image/png;base64,{}'.format(convert('pred-final-no-time-l4r26.png')),
+                     width=900, height=450),
+            html.Img(src='data:image/png;base64,{}'.format(convert('imp-final-no-time-l4r26.png')),
+                     width=900, height=600)
 
-    # dcc.Markdown('''
-    #     Using the previously defined hyperparameters, we used again scikit-learn's 
-    #     GridSearchCV to try to optimize the minimum loss reduction required to make a further
-    #     partition on a leaf node of the tree (*gamma*), the *subsample* ratio of the
-    #     training instances, and the subsample ratio of columns when constructing each 
-    #     tree (*colsample_bytree*). We tested the following values:
-    #     - __*gamma*__: 0, .1, .25, .5, 1, 2          
-    #     - __*subsample*__: .3, .6, 1
-    #     - __*colsample_bytree*__: .3, .6, 1
-                        
-    #     The optimal settings were *'gamma'* = 0, *'subsample'* = 1, and *'colsample_bytree'* = 1.
-    #     '''
-    # ),
-    # html.Br(),
+        ]
+    ),
     
-    # html.H6('Tuning learning_rate'),
-            
-    # html.Div(
-    #     className='row',    
-    #     children=[
-    #         html.Div(
-    #             className='six columns',
-    #             children=[
-    #                 dcc.Markdown('''
-    #                     In a final step, we return to XGBoost's *cv* to test a lower learning rate,
-    #                     while at the same time allowing the number of trees to increase. The 
-    #                     learning rate (or eta) is the step size shrinkage (error "correction") used
-    #                     to prevent overfitting. After each boosting step, it reduces the feature 
-    #                     weights to make the boosting process more conservative.
-                        
-    #                     The following settings were used:
-    #                     - __*learning_rate*__: .01 
-    #                     - __*num_boost_round*__: 5000
-    #                     '''),
-    #                 html.Br(),
-                    
-    #                 dcc.Markdown('''
-    #                     Based on the chart to the right, the best number of estimators (trees) would
-    #                     be around 250. The corresponding RMSE was 108.6.
-    #                     ''')
-    #             ]
-    #         ),
-    #         html.Div(
-    #             className='six columns',
-    #             children=
-    #                 dcc.Graph(
-    #                     id='xg_learning',
-    #                     figure = {
-    #                         'data': [
-    #                             go.Scatter(
-    #                                 x = xgb_learning['Trees'],
-    #                                 y = xgb_learning['Mean RMSE'],
-    #                                 mode = 'lines',
-    #                                 line=dict(color='firebrick'),
-    #                                 showlegend = False
-    #                             )],
-    #                         'layout': go.Layout(
-    #                                 template='plotly_white',
-    #                                 title= 'Mean RMSE by Number of Trees in the Model',            
-    #                                 xaxis={'title': 'Number of Trees'},
-    #                                 yaxis={'title': 'Mean RMSE'},
-    #                                 hovermode='closest',
-    #                                 margin={'l':30, 'r':30, 'b':10, 't':30}
-    #                                 )
-    #                         }
-    #                 )
-    #         )
-    #     ]
-    # ),
-    # html.Br(),
-    
-    # html.H4('Testing'),
     
     # html.Div(
     #     className='row',    
     #     children=[
-    #         html.Div(
-    #             className='six columns',
-    #             children=
-    #                 dcc.Markdown('''
-    #                     We used XGBoost with the previously defined hyperparameters
-    #                     to predict the number of cases of Dengue fever per 100,000k
-    #                     population in Belo Horizonte, the capital of Minas Gerais state.
-                        
-    #                     The RMSE of the predicted values was 108.5, which is quite similar
-    #                     to what was obtained in the training and validation stages. This
-    #                     RMSE is quite high, and similar to the standard deviation of the
-    #                     target feature in the original dataset.
-                        
-    #                     The chart to the right confirms that the predicted values 
-    #                     (in red) were quite off the observed values (in blue). Thus,
-    #                     our model had a poor predictive power.
-    #                     ''')
-                    
-    #         ),
-    #         html.Div(
-    #             className='six columns',
-    #             children=
-    #                 dcc.Graph(
-    #                     id='xg_test',
-    #                     figure = {
-    #                         'data': [
-    #                             go.Scatter(
-    #                                 x = xgb_test['data_alvo'],
-    #                                 y = xgb_test['por_habitante_pred'],
-    #                                 mode = 'lines',
-    #                                 line=dict(color='firebrick'),
-    #                                 showlegend = False
-    #                             ),
-    #                             go.Scatter(
-    #                                 x = xgb_test['data_alvo'],
-    #                                 y = xgb_test['por_habitante_alvo'],
-    #                                 mode = 'lines',
-    #                                 line=dict(color='darkblue'),
-    #                                 showlegend = False
-    #                             )],
-    #                         'layout': go.Layout(
-    #                                 template='plotly_white',
-    #                                 title= 'Mean RMSE by Number of Trees in the Model',            
-    #                                 xaxis={'title': 'Number of Trees'},
-    #                                 yaxis={'title': 'Mean RMSE'},
-    #                                 hovermode='closest',
-    #                                 margin={'l':30, 'r':30, 'b':10, 't':30}
-    #                                 )
-    #                         }
-    #                 )
+    #         dcc.Graph(
+    #             id='dist-importance',
+    #             figure = {
+    #                 'data': [
+    #                     go.Scatter(
+    #                         x=bh_imp['Distance'],
+    #                         y=bh_imp['Importance'],
+    #                         text=bh_imp['City'],
+    #                         mode='markers',
+    #                         opacity=0.5,
+    #                         marker={
+    #                             'size': 10,
+    #                             'color': bh_imp['Lag'],
+    #                             'colorscale': 'Bluered', 
+    #                             'line': {'width': 0.5, 'color': 'white'}
+    #                             }
+    #                     )
+
+    #                     #     x=bh_imp[bh_imp['Lag']==i]['Distance'],
+    #                     #     y=bh_imp[bh_imp['Lag']==i]['Importance'],
+    #                     #     text=bh_imp[bh_imp['Lag']==i]['City'],
+    #                     #     mode='markers',
+    #                     #     opacity=0.7,
+    #                     #     marker={
+    #                     #         'size': 10,
+    #                     #         'color':  
+    #                     #         'line': {'width': 0.5, 'color': 'white'}
+    #                     #         },
+    #                     # ) for i in bh_imp['Lag'].unique()
+    #                 ],
+    #                 'layout': go.Layout(
+    #                             template='plotly_white',
+    #                             title='Feature Importance against Distance',            
+    #                             xaxis={'title': 'Distance'},
+    #                             yaxis={'title': 'Log Importance'},
+    #                             yaxis_type='log',
+    #                             hovermode='closest'                                
+    #                         )
+    #                 }
     #         )
-    #     ]
-    # ),
+    #     ]   
+    # )
 ])
 
 

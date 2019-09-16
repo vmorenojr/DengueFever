@@ -1,0 +1,2 @@
+n_estimators,learning_rate,min_child_weight,max_depth,gamma,subsample,colsample_bytree,RMSE
+500.0,0.275,5.0,5.0,0.0,1.0,1.0,55.58521814840697
