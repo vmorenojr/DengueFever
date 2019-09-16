@@ -89,6 +89,9 @@ To install the dash app in Heroku.com, follow the steps below (in Windows 10):
     - https://denguebr.herokuapp.com/ 
     - https://git.heroku.com/denguebr.git
 
+    Connect your git to the git repository in Heroku
+    $ heroku git:remote -a denguebr
+
 10. Prepare the first commit:
     $ git add .
     $ git commit -m 'Initial commit'
@@ -101,14 +104,16 @@ To install the dash app in Heroku.com, follow the steps below (in Windows 10):
 
 13. Update the code and redeploy
 
-    When you modify app.py with your own code, you will need to add the changes to git
+    Replace the initial app.py file with your own app.py. Make sure you have 
+    added: 
+       server = app.server 
+    right under 
+       app = dash.Dash()
+
+    After you make any modifications in your app folder, you need to add the changes to git
     and push those changes to heroku.
 
     $ git status                                     # view the changes
     $ git add .                                      # add all the changes
     $ git commit -m 'a description of the changes'
     $ git push heroku master
-
-pip install -r requirements.txt
-
-
