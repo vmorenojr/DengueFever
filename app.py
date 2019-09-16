@@ -692,7 +692,7 @@ app.layout = html.Div([
         '''),
     html.Br(),
     
-    html.H6('Exploratory analyis'),
+    html.H6('Initial exploratory analyis'),
     
     # Baseline
     dcc.Markdown('''    
@@ -1148,7 +1148,7 @@ app.layout = html.Div([
         '''),
     html.Br(),
     
-    html.H4('Testing'),
+    html.H6('Testing'),
     
     dcc.Markdown('''
         We used XGBoost with the previously defined hyperparameters
@@ -1190,7 +1190,52 @@ app.layout = html.Div([
         ]
     ),
     
+    html.H6('Conclusion'),
     
+    dcc.Markdown('''
+        The award-winning XGBoost algorithm showed only reasonable prediction power
+        as far as Dengue fever occurrence in Belo Horizonte is concerned. Nevertheless, 
+        even when time-related features were removed, its performance remained 
+        the same and consistently better than that of the baseline models.
+        As suggested before, it is possible then that the information
+        contained in time-related features is also contained in the time series of the occurrence
+        of Dengue for the Brazilian state capitals. The inclusion of these features,
+        which implicitly also contain information on distance to the target city (Belo Horizonte),
+        did improve the prediction power of the model. Tuning the XGBoost hyperparameters 
+        improved little the results, which remained essentially the same generated with the
+        default settings.
+        
+        As mentioned in the exploratory data analysis, the time series of Dengue fever
+        epidemics indicate that the number of cases has a cyclical nature, following
+        the rainy and dry seasons in Brazil. The dataset we obtained from InfoDengue
+        contains data from 2006 to 2019, which comprises only 13 of such cycles. Thus,
+        it is possible that such lack of information has impaired the predictive power
+        of the algorithm.
+               
+        It is also important to note that, due to computer resources and time restrictions, 
+        we could only run the analysis for the city of Belo Horizonte. A more complete 
+        assessment of the possibility of applying XGBoost to the problem at hand requires
+        the examination of the evolution of Dengue in all state capitals in the country.
+        
+        The possibility of applying an XGBoost-based model for planning purposes and 
+        resource allocation decisions was somewhat reduced by our initial findings, at 
+        least in conditions similar to those we had in our analysis. The prediction
+        power of the models we tested deteriorated significantly when greater time
+        lags were used. Alghouth predictions of the number of Dengue fever cases one
+        month in advance are surely useful for the mitigation of epidemics, the actual
+        planning of prevention efforts requires the forecast of outbreaks at least one
+        year in advance.
+        
+        The main objective of our project was to assess the possibility
+        of using the distances between state capitals and historical data on Dengue 
+        fever reports to predict future epidemics. Our findings suggest that XGBoost
+        is a promising alternative for this purpose. Nontheless, the accuracy of models 
+        based on this algorithm may depend greatly on the availability of yearly data on 
+        Dengue fever occurrences. We recommend further assessments in this direction,
+        as well as the evaluation of XGBoost models elaborated for other
+        Brazilian state capitals.
+    ''')          
+
     # html.Div(
     #     className='row',    
     #     children=[
@@ -1238,8 +1283,9 @@ app.layout = html.Div([
     # )
 ])
 
-
-# interaction callbacks
+# ---------------------
+# Interaction callbacks
+# ---------------------
 
 @app.callback(
     [Output('ts-global', 'figure'),
