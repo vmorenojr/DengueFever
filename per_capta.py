@@ -30,7 +30,6 @@ for i in capitais.index:
     dados.loc[dados['municipio'] == capitais.municipio[i], 'populacao'] = np.around(new_pop, 0)
 
 # Calculate dengue cases per capta
-
 dados['por_habitante'] = 100000*dados['ocorrencias']/dados['populacao']
 dados.drop(columns='semana', inplace=True)
 
