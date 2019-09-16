@@ -133,13 +133,34 @@ server = app.server
 # create layout
 app.layout = html.Div([
     
-    # Page Header
-    html.H2('Predicting Dengue Fever Epidemics in Brazilian State Capitals'),
-    html.H3('Lucas Ribeiro & Valter Moreno', style={'color': '#566573'}),
-    html.H5('Escola de Matemática Aplicada (EMAp) / FGV', style={'color': '#566573'}),
+    # Page Header and video
+    html.Div(
+        className='row',
+        children=[
+            html.Div(
+                className='four columns',
+                children=[
+                    html.Br(),
+                    html.Iframe(
+                        width=380, height= 220,
+                        src='https://www.youtube.com/embed/xnFqKwuinlk',
+                        style={'frameborder':'0',
+                            'allow':'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture'}
+                    )
+                ]
+            ),
+            html.Div(
+                className='eight columns',
+                children=[
+                    html.H2('Predicting Dengue Fever Epidemics in Brazilian State Capitals'),
+                    html.H3('Lucas Ribeiro & Valter Moreno', style={'color': '#566573'}),
+                    html.H5('Escola de Matemática Aplicada (EMAp) / FGV', style={'color': '#566573'})
+                ]
+            )
+        ]
+    ),
     html.Br(),
-    html.Br(),
-    
+          
     # Text
     html.H3('Introduction'),
         
