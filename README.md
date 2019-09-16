@@ -1,3 +1,5 @@
+# Predicting Dengue Fever Epidemics in Brazilian State Capitals
+
 ## Introduction
 
 This project is part of the InfoDengue project developed by Prof. Flavio Codeço and colleagues from Fundação Getúlio Vargas (FGV) and Fundação Oswaldo Cruz (Fiocruz). In addition to its various research-oriented deliveries, the project has implemented an online dashboard that is weekly updated with Dengue, Chikungunya and Zika fever data from 790 cities in Brazil. In this way, it enables local health agencies to make better decisions as far as planning and the allocation of resources is concerned, and subsenquently evaluate the outcomes of its efforts.
