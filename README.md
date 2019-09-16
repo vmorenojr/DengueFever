@@ -13,7 +13,7 @@ To run all modules in our project, follow these steps:
 1. Clone the github repository to a folder in your computer.
 2. Open a PowerShell in that folder, and create and activate a virtual environment. If necessary, detailed instructions can be found [here](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/).
 3. To install all required modules, run: `$pip install -r requirements.txt` 
-4. If necessary, install xgboost manually. You can find instructions [here](https://xgboost.readthedocs.io/en/latest/build.html)
+4. It may be necessary to install xgboost manually. If so, you can find detailed instructions [here](https://xgboost.readthedocs.io/en/latest/build.html)
 
 ## Main application
 
