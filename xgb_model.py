@@ -189,11 +189,15 @@ def analysis(datasets, municipios, target_city, dates, outcome,
     
     reg_importance = pd.DataFrame(reg.feature_importances_, columns=['Importance'])*1000
     reg_importance['Features'] = X_train.columns
-    city_lag = reg_importance.Features.str.split('_', expand=True)
-    reg_importance = reg_importance.merge(city_lag, left_index=True, right_index=True)\
-                                   .drop('Features', axis=1)
-    reg_importance.columns = ['Importance', 'City', 'Lag']
+    
+    if lagged: 
+        city_lag = reg_importance.Features.str.split('_', expand=True)
+        reg_importance = reg_importance.merge(city_lag, left_index=True, right_index=True)\
+                                       .drop('Features', axis=1)
+        reg_importance.columns = ['Importance', 'City', 'Lag']
+    
     reg_importance.to_csv('XGB_fit/importances.csv', index=False)
+    
     # Generate forecast
     y_pred = reg.predict(X_test)
 
@@ -301,13 +305,15 @@ dates = 'dt_sintoma'
 
 # Run analysis and store fit results
 RMSE, MAE, MAPE = analysis(datasets=datasets, municipios=['Belo Horizonte'], target_city=city, 
-                          dates=dates, outcome=outcome,
-                          start_date=start_date, end_date=end_date, split_date=split_date, 
-                          plt_name_base='base', 
-                          lagged=False,
-                          pars={'n_estimators': 1000},
-                          date_features=True,
-                          show = False)
+                           dates=dates, outcome=outcome,
+                           start_date=start_date, end_date=end_date, split_date=split_date, 
+                           plt_name_base='base',
+                           pars={'n_estimators': 1000}, 
+                           lag_weeks=1,
+                           range_weeks=12,
+                           lagged=False,
+                           date_features=True,
+                           show = False)
 results = pd.DataFrame({'RMSE': RMSE, 'MAE': MAE, 'MAPE': MAPE}, index=[0])
 results.to_csv('XGB_fit/baseline.csv', index=False)
 print(results)
