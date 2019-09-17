@@ -55,7 +55,7 @@ The following folders will be created when cloning the github repository:
 ### Contact
 
 If you have any questions or suggestions, please contact the authors:
-  - Lucas Oliveira:
+  - Lucas Ribeiro: lucasribeirocoutinho@gmail.com
   - Valter Moreno: valter.moreno@eng.uerj.br
 
 
