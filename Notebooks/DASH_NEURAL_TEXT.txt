@@ -1,0 +1,54 @@
+Neural Network
+
+
+We used a Neural Network with three layers where one is a hidden layer. 
+
+Tunning the Hyperparameters
+
+As hyperaparemeters, we have: 
+
+1. Number of layers
+2. Number of neurons in each layer
+3. Activation Function
+4. Learning rate
+
+We tested the neural network with 1, 2 and 3 hidden layers, but it did not show improvements with more layers - just more computational cost, therefore we opt to use 1 hidden layer.
+
+In order to avoid high computational costs, we tested the neural network with 64, 128 and 256 neurons each layer, but it did not show any improvement after increasing the number of neurons, therefore we opt to use 64 neurons in each layer. 
+
+The activation function we chose is the Rectified Linear Unity (ReLU), since sigmoid function gave sligthly worse results. 
+
+We chose a learning rate of 0.001, as standard procedures recomend.
+
+Therefore:
+
+Total number of layers: 3
+Hidden layers: 1
+Activation Function: ReLU
+Learning rate: 0.001
+
+When training, we used an early stopping method, in order to avoid overfitting.
+
+
+Different from XGBoost, the results with neural networks were not satisfactory. It could not fit properly and the loss function did not have a good minimization. 
+
+After fitting, we obtained:
+
+RMSE: 6441.37
+MAE: 72.75
+
+As we can see in the figures below, the training history shows a huge oscilation in the MAE, whereas the train error almost does not change. 
+
+<<history1.png>>
+
+Analyzing the history of the RMSE, we can see a difference in the validation and training sets improvment. 
+
+<<history2.png>>
+
+We can see in the chart below that the predictions were very insatisfactory. The neural network could not fit properly. The number in x axis is the 
+
+<<final_result.png>>
+
+Conclusion:
+
+With the way we decided to use our data, neural networks were not the right tool. It could not fit properly and the loss function could not be minimized nicely. With more time, we could have build a more complex Neural network, such as a LSTM, which is adequate to model timeseries. This Neural Network devoted to regression could not do the job. We needed a different dataset configuration in order to achieve a satisfactory result with the neural network. 
